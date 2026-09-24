@@ -3,7 +3,13 @@
 A MAX bot that helps young people (14–22) spend their Pushkin Card on events they will
 actually enjoy — before the money expires on 31 December.
 
-**Status: research. The MVP scope is not fixed yet.**
+**Status: first working bot. The MVP scope is not fixed yet.**
+
+```bash
+python3 backend/console.py
+```
+Runs the whole conversation in a terminal — no MAX token needed.
+See [backend/README.md](backend/README.md).
 
 ## Decisions made so far
 
@@ -12,7 +18,7 @@ actually enjoy — before the money expires on 31 December.
 | Track | Leisure and Entertainment |
 | Audience | Pushkin Card holders, 14–22 |
 | Pilot region | Kazan / Republic of Tatarstan |
-| Backend | Python + FastAPI |
+| Backend | Python + FastAPI (allowed — JS/React is a recommendation, not a requirement) |
 | Front end | React (MAX UI) |
 | Scope (bot only vs bot + mini app) | **open** |
 
@@ -20,13 +26,17 @@ actually enjoy — before the money expires on 31 December.
 
 | Document | What's in it |
 |---|---|
+| [docs/compliance-check.md](docs/compliance-check.md) | Our plan checked against every constraint, with what still needs doing |
 | [docs/requirements.md](docs/requirements.md) | What the hackathon requires: constraints, submission checklist, scoring weights |
 | [docs/research/pushkin-card.md](docs/research/pushkin-card.md) | The program, the numbers, the pain, and what data we can actually get |
 | [docs/research/hypothesis-boring-events.md](docs/research/hypothesis-boring-events.md) | Testing "the events are boring": what held up, what didn't, and the reframed product idea |
+| [docs/design/database.md](docs/design/database.md) | The schema, and why the taste vector already *is* a user embedding |
 | [docs/design/ranking.md](docs/design/ranking.md) | How we rank events: why collaborative filtering won't work, and what to do instead |
 | [docs/design/emotional-anchors.md](docs/design/emotional-anchors.md) | Why people actually go: narrative transportation, mood vs emotion, and the bridge mechanic |
 | [docs/design/tone.md](docs/design/tone.md) | Why trying to sound young backfires, and the register rules that follow |
 | [docs/research/max-platform.md](docs/research/max-platform.md) | MAX Bot API, mini apps, and which part of the flow goes where |
+| [docs/testing-in-max.md](docs/testing-in-max.md) | How to get a token and actually run the bot inside MAX |
+| [backend/README.md](backend/README.md) | How to run the bot, how the modules fit together, known limitations |
 | [data/README.md](data/README.md) | The synthetic Kazan catalogue: why it exists, how it's shaped, what the funnel shows |
 | [docs/outreach/api-key-request.md](docs/outreach/api-key-request.md) | Draft letter requesting the PRO.Культура.РФ API key, plus the fallback routes |
 | [docs/brief/brief-ru.md](docs/brief/brief-ru.md) | The organizers' original brief (Russian, parsed from PDF) |
@@ -55,3 +65,13 @@ actually enjoy — before the money expires on 31 December.
 - [ ] Get 5 people aged 15–18 to read every user-facing string before submission
 - [ ] Read the full MAX docs and confirm proactive messaging + mini app launch from a button
 - [ ] Fix the MVP scope
+- [x] Step 1 of the build plan: hard filters, dialog, MAX client, Docker
+- [x] Steps 2-3: affect labelling, taste vectors, ranking with diversity, onboarding quiz
+- [x] SQLite store: profiles, taste vectors, interaction log, session state, catalogue cache
+- [ ] Measure the Docker build against the 5-minute cap (Docker wasn't running here)
+- [ ] **Ask the organizers when the bot token is handed over** — everything MAX-side depends on this
+- [ ] Backup: if anyone on the team is self-employed, start a bot through business.max.ru (48h moderation)
+- [ ] Verify the MAX keyboard payload shape against a live token
+- [ ] Architectural rule: no ML at runtime — label and embed offline, ship artifacts
+- [ ] Test the full scenario in **both** mobile and web MAX
+- [ ] Pick the bot username (irreversible)
