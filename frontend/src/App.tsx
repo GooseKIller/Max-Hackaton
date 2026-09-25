@@ -175,7 +175,6 @@ function PlanDetails({
       <div className="detail-content">
         <header className="detail-heading">
           <div>
-            <span className="eyebrow">ТВОЙ ПЛАН · КАЗАНЬ</span>
             <h2 id="detail-title">{plan.title}</h2>
           </div>
           <button className="close" aria-label="Закрыть план" onClick={close}>
@@ -357,7 +356,6 @@ export function App() {
           </div>
           <div>
             <h1>Планы по Пушкинской карте</h1>
-            <p>{meta?.city ?? "Казань"} · Пилот</p>
           </div>
         </header>
         <main>
@@ -374,7 +372,6 @@ export function App() {
           >
             <div className="section-intro">
               <h2 id="form-title">Подобрать события</h2>
-              <p>2–3 события, общая сумма и остаток после них.</p>
             </div>
             <form
               onSubmit={submit}

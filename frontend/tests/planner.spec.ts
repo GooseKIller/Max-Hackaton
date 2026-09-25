@@ -99,6 +99,11 @@ test("initial screen has no invented balance, no horizontal overflow", async ({
   await expect(page.getByRole("heading", { level: 1 })).toHaveText(
     "Планы по Пушкинской карте",
   );
+  await expect(page.locator(".site-header")).not.toContainText("Пилот");
+  await expect(page.locator(".site-header")).not.toContainText("Казань");
+  await expect(
+    page.getByText("2–3 события, общая сумма и остаток после них."),
+  ).toHaveCount(0);
   await expect(
     page.getByLabel("Остаток на карте", { exact: true }),
   ).toHaveValue("");
@@ -138,6 +143,7 @@ test("calculation, details, escape and stale-result invalidation", async ({
   });
   await page.getByRole("button", { name: "Посмотреть план" }).click();
   await expect(page.getByRole("dialog")).toBeVisible();
+  await expect(page.getByRole("dialog")).not.toContainText("ТВОЙ ПЛАН");
   await expect(
     page.getByRole("dialog").getByText("Сумма от", { exact: false }),
   ).toBeVisible();

@@ -20,7 +20,7 @@ not Telegram branding or official co-brand approval. No decorative gradients or 
 
 | Trigger | User-facing text / action | Constraint |
 |---|---|---|
-| First visit | «Подобрать события» / «2–3 события, общая сумма и остаток после них» | No made-up balance prefilled |
+| First visit | «Подобрать события» | No decorative subtitles (“Казань · Пилот”), repeated explanations or made-up balance prefilled |
 | Budget input | «Введи точную сумму из „Госуслуги Культура“. Мы не видим баланс карты» | Exact rubles, not a range |
 | Cinema off | «Пока подбираем без кино: у него отдельное ограничение внутри общего остатка» | No guessed 2,000 available |
 | Cinema on | «Сколько ещё доступно на кино?» | Not above total/annual cinema limit |
