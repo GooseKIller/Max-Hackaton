@@ -1,9 +1,11 @@
 """
 The service.
 
-FastAPI serves two things:
+FastAPI serves:
   - /health, so Docker and a judge can see it is alive
   - /webhook, for MAX to post updates to once the bot is deployed
+  - /api/planner/*, a stateless budget planner without access to bot profiles
+  - /app/, the built React interface (when frontend/dist is present)
 
 For local development there is also a long-polling runner in `runner.py`, which needs
 no public HTTPS.
@@ -19,12 +21,14 @@ from contextlib import asynccontextmanager
 from pathlib import Path
 
 from fastapi import FastAPI, Request
+from fastapi.staticfiles import StaticFiles
 
 from .catalog import build_source
 from .config import CARD_RULES_2026, settings
 from .db import Store
 from .dialog import Dialog
 from .max_client import MaxClient, parse_update
+from .planner_api import PlannerService, router as planner_router
 
 logging.basicConfig(level=logging.INFO)
 log = logging.getLogger(__name__)
@@ -45,6 +49,7 @@ async def lifespan(app: FastAPI):
     state["store"] = store
     state["dialog"] = Dialog(source, store)
     state["source"] = source
+    app.state.planner = PlannerService(source)
     state["max"] = MaxClient(settings.max_bot_token, settings.max_api_base) if settings.has_max_token else None
 
     log.info(
@@ -68,6 +73,7 @@ app = FastAPI(
     version="0.1.0",
     lifespan=lifespan,
 )
+app.include_router(planner_router)
 
 
 @app.get("/health")
@@ -121,3 +127,10 @@ async def webhook(request: Request) -> dict:
         log.info("would reply to %s: %s", message.chat_id, reply.text[:80])
 
     return {"ok": True}
+
+
+# Same-origin production UI. In development Vite proxies /api to this service.
+# API-only and console installations remain usable without Node or a frontend build.
+FRONTEND_DIST = ROOT / "frontend" / "dist"
+if FRONTEND_DIST.is_dir():
+    app.mount("/app", StaticFiles(directory=FRONTEND_DIST, html=True), name="planner-ui")
