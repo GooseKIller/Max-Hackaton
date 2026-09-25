@@ -7,9 +7,8 @@ a terminal today, without a bot token, and plug MAX in later without touching an
 of the logic here.
 
 Register rules from docs/design/tone.md apply to every string in this file:
-no slang, no exclamation-mark enthusiasm, no urgency theatre. State the fact, give
-the options, let them decide. And rule 3 — say plainly why we are recommending
-something, because a declared persuasion cannot be caught out.
+no forced slang or pressure. State the fact, give options and explain the actual
+inputs used by a recommendation. These are design choices to validate with users.
 """
 
 from __future__ import annotations
@@ -17,6 +16,8 @@ from __future__ import annotations
 from dataclasses import dataclass, field
 from datetime import date, datetime
 from enum import Enum, auto
+import re
+from zoneinfo import ZoneInfo
 
 from .catalog import EventSource
 from .db import Store
@@ -24,6 +25,7 @@ from .config import BALANCE_EXPIRES, CARD_RULES_2026, ELIGIBLE_AGE_MAX, ELIGIBLE
 from .filters import candidates, km_between
 from .labeling import label_all
 from .models import Event, Seance, UserProfile
+from .plans import build_plans
 from .taste import MOOD_TARGETS, Ranker, Scored, Taste, mood_match, quiz_cards
 
 WEEKDAYS_RU = ("пн", "вт", "ср", "чт", "пт", "сб", "вс")
@@ -39,7 +41,7 @@ REASON_TEXT = {
     "taste": "похоже на то, что ты отметил(а)",
     "discovery": "необычный формат, такого мало в афише",
     "budget": "хорошо ложится в остаток",
-    "convenience": "рядом и в удобное время",
+    "convenience": "подходит под выбранное время",
     "urgency": "успеваешь до конца года",
 }
 
@@ -48,6 +50,9 @@ class Step(Enum):
     NEW = auto()
     ASK_AGE = auto()
     ASK_BALANCE = auto()
+    ASK_CINEMA = auto()
+    EDIT_BALANCE = auto()
+    EDIT_CINEMA = auto()
     ASK_TIME = auto()
     ASK_MOOD = auto()
     QUIZ = auto()
@@ -90,16 +95,18 @@ def _fmt_expiry() -> str:
 
 
 def _parse_int(text: str) -> int | None:
-    digits = "".join(ch for ch in text if ch.isdigit())
-    return int(digits) if digits else None
+    # Do not silently turn '-500', '12.5', '1000–2500' or '500 и 200' into money.
+    value = text.strip().lower()
+    if not re.fullmatch(r"(?:[0-9]{1,5}|[0-9]{1,2}(?:[ \u00a0\u202f][0-9]{3}))(?:\s*(?:₽|руб\.?))?", value):
+        return None
+    return int(re.sub(r"[^0-9]", "", value))
 
 
 class Dialog:
     """
     One bot, many sessions.
 
-    Sessions are in memory. Fine for an MVP and a demo; when they need to survive a
-    restart, this is the one place to change.
+    Sessions are cached in memory and rehydrated when a Store is supplied.
     """
 
     def __init__(self, source: EventSource, store: Store | None = None):
@@ -168,18 +175,24 @@ class Dialog:
     # -- routing -------------------------------------------------------------
 
     def handle(self, user_id: str, text: str, now: datetime | None = None) -> Reply:
-        now = now or datetime.now()
+        now = now or datetime.now(ZoneInfo("Europe/Moscow")).replace(tzinfo=None)
         text = (text or "").strip()
         session = self._session(user_id)
 
         if text.lower() in ("/start", "начать", "заново", "/reset"):
             self.reset(user_id)
-            return self._greet(self._session(user_id))
+            session = self._session(user_id)
+            reply = self._greet(session)
+            self._persist(session)
+            return reply
 
         handlers = {
             Step.NEW: lambda: self._greet(session),
             Step.ASK_AGE: lambda: self._take_age(session, text),
-            Step.ASK_BALANCE: lambda: self._take_balance(session, text),
+            Step.ASK_BALANCE: lambda: self._take_balance(session, text, now),
+            Step.ASK_CINEMA: lambda: self._take_cinema(session, text, now),
+            Step.EDIT_BALANCE: lambda: self._take_balance(session, text, now, editing=True),
+            Step.EDIT_CINEMA: lambda: self._take_cinema(session, text, now, editing=True),
             Step.ASK_TIME: lambda: self._take_time(session, text),
             Step.ASK_MOOD: lambda: self._take_mood(session, text, now),
             Step.QUIZ: lambda: self._take_quiz(session, text, now),
@@ -224,22 +237,19 @@ class Dialog:
         return Reply(
             text=(
                 f"Сколько осталось на карте?\n"
-                f"Номинал на год — {r.total} ₽, из них {r.cinema_cap} ₽ на кино.\n"
-                f"Данные на {r.as_of}, источник: {r.source}"
+                f"Годовой лимит — {r.total} ₽, на кино — до {r.cinema_cap} ₽ внутри него.\n"
+                "Введи точную сумму или выбери «не знаю», чтобы посмотреть события без расчёта плана."
             ),
             buttons=["5000", "3200", "1500", "не знаю"],
         )
 
-    def _take_balance(self, session: Session, text: str) -> Reply:
+    def _take_balance(self, session: Session, text: str, now: datetime, editing: bool = False) -> Reply:
         r = CARD_RULES_2026
-        note = ""
         if text.lower() in ("не знаю", "хз", "?"):
-            session.profile.balance_general = r.total
-            session.profile.balance_cinema = r.cinema_cap
-            note = (
-                f"Считаю, что карта полная — {r.total} ₽. "
-                f"Точный остаток в «Госуслуги Культура», напиши число, если другое.\n\n"
-            )
+            session.profile.balance_general = None
+            session.profile.balance_cinema = None
+            session.profile.balance_reported_at = None
+            return self._after_balance(session, now, editing, "Пока покажу события без кино. Для расчёта плана понадобится точный остаток.\n\n")
         else:
             amount = _parse_int(text)
             if amount is None or amount < 0 or amount > r.total:
@@ -248,8 +258,35 @@ class Dialog:
                     buttons=["5000", "3200", "1500", "не знаю"],
                 )
             session.profile.balance_general = amount
-            session.profile.balance_cinema = min(amount, r.cinema_cap)
+            session.profile.balance_cinema = None
+            session.profile.balance_reported_at = now.isoformat(timespec="seconds")
 
+        if amount == 0:
+            session.profile.balance_cinema = 0
+            return self._after_balance(session, now, editing)
+        session.step = Step.EDIT_CINEMA if editing else Step.ASK_CINEMA
+        return Reply(
+            text=("Сколько из остатка ещё можно потратить на кино?\n"
+                  "Посмотри в «Госуслуги Культура». Если не знаешь, подберу события без кино."),
+            buttons=["0", str(min(amount, r.cinema_cap)), "без кино"],
+        )
+
+    def _take_cinema(self, session: Session, text: str, now: datetime, editing: bool = False) -> Reply:
+        limit = min(session.profile.balance_general or 0, CARD_RULES_2026.cinema_cap)
+        if text.lower() in ("не знаю", "без кино", "пропустить"):
+            session.profile.balance_cinema = None
+        else:
+            amount = _parse_int(text)
+            if amount is None or not 0 <= amount <= limit:
+                return Reply(text=f"Введи остаток на кино от 0 до {limit} ₽ или выбери «без кино».", buttons=["0", "без кино"])
+            session.profile.balance_cinema = amount
+        return self._after_balance(session, now, editing)
+
+    def _after_balance(self, session: Session, now: datetime, editing: bool, note: str = "") -> Reply:
+        session.offset = 0
+        if editing:
+            session.step = Step.READY
+            return self._recommend(session, now, preamble=note or None)
         session.step = Step.ASK_TIME
         return Reply(
             text=note + "Когда тебе удобно ходить?",
@@ -343,53 +380,102 @@ class Dialog:
 
     def _take_command(self, session: Session, text: str, now: datetime) -> Reply:
         t = text.lower()
+        if t in ("собрать план", "план", "/plan"):
+            return self._plans(session, now)
         if t in ("ещё", "еще", "дальше", "/more"):
             session.offset += 3
             return self._recommend(session, now)
         if t in ("сколько осталось", "баланс", "/balance"):
-            return self._balance_note(session)
+            return self._balance_note(session, now)
         if t in ("другой остаток", "/balance_set"):
-            session.step = Step.ASK_BALANCE
+            session.step = Step.EDIT_BALANCE
             return Reply(text="Сколько сейчас на карте?", buttons=["5000", "3200", "1500"])
         if t in ("другое настроение", "/mood"):
             session.mood = None
             session.step = Step.ASK_MOOD
             return Reply(text="Чего сейчас хочется?", buttons=list(MOOD_TARGETS.keys()))
 
-        # Treat anything else as "show me again", but learn from it: naming an event
-        # we showed is a signal about it.
-        for i, scored in enumerate(session.last_shown):
-            if t and t in scored.event.name.lower():
-                session.taste.add(scored.vector, "buy_click")
-                self._log(session, scored.event.id, "buy_click", surface="feed", position=i)
-                break
+        # A typed title is not an observed ticket-link click. Only explicit UI
+        # instrumentation may record buy_click; do not fabricate conversion data.
         session.offset = 0
         return self._recommend(session, now)
 
     # -- output --------------------------------------------------------------
 
-    def _balance_note(self, session: Session) -> Reply:
+    def _balance_note(self, session: Session, now: datetime) -> Reply:
         """
         The expiry reminder, stated flatly.
 
-        tone.md rule 5: no "не упусти", no countdown theatre. Reactance research says
-        pressure produces resistance, and the fact is urgent enough by itself.
+        Use a dated user report and the policy source; never imply a live bank read.
         """
         p = session.profile
         return Reply(
             text=(
-                f"По твоим словам на карте {p.balance_general} ₽. "
-                f"Сгорают {_fmt_expiry()} — это {_days_left()} дней.\n"
-                f"Точный остаток — в «Госуслуги Культура»."
+                f"{self._reported_balance(p)}\n"
+                f"Годовой остаток не переносится после {_fmt_expiry()}. До этой даты {_days_left(now.date())} дней.\n"
+                f"Точный остаток — в «Госуслуги Культура».\n"
+                f"Правила на {CARD_RULES_2026.as_of}: {CARD_RULES_2026.source}"
             ),
             buttons=["что посмотреть", "другой остаток"],
         )
+
+    @staticmethod
+    def _reported_balance(user: UserProfile) -> str:
+        if user.balance_general is None:
+            return "Остаток пока не указан; доступность по бюджету не подтверждена."
+        when = f" ({user.balance_reported_at[:10]})" if user.balance_reported_at else ""
+        return f"Последний указанный остаток{when}: {user.balance_general} ₽."
+
+    def _plans(self, session: Session, now: datetime) -> Reply:
+        user = session.profile
+        buttons = ["что посмотреть", "другой остаток"]
+        if user.balance_general is None:
+            return Reply("Для расчёта плана нужен точный остаток. Его можно посмотреть в «Госуслуги Культура».", buttons)
+        found = candidates(self._events, user, now)
+        ranked = self._ranker.score(found, user, session.taste, today=now.date())
+        plans = build_plans(ranked, user)
+        if not plans:
+            return Reply("План из 2–3 событий под эти условия не получился. Можно посмотреть отдельные события или обновить остаток.", buttons)
+        titles = {"interests": "По интересам", "variety": "Разные форматы", "budget": "Ближе к остатку"}
+        blocks = []
+        for plan in plans:
+            estimated = any(s.event.price != s.event.max_price for s in plan.items)
+            lines = [titles[plan.kind]]
+            for s in plan.items:
+                price = f"от {s.event.price}" if s.event.price != s.event.max_price else str(s.event.price)
+                title = s.event.name if len(s.event.name) <= 100 else s.event.name[:99] + "…"
+                venue = s.event.place.name if len(s.event.place.name) <= 80 else s.event.place.name[:79] + "…"
+                lines.append(f"• {title} — {price} ₽ · {_fmt_when(s.seance)}\n  {venue}")
+                if s.event.sale_link and not (s.event.is_synthetic or self._source.is_synthetic):
+                    if len(s.event.sale_link) <= 300:
+                        lines.append(f"  {s.event.sale_link}")
+                    else:
+                        lines.append("  Ссылку на билет уточни у площадки.")
+            if estimated:
+                lines.append(f"Итого от {plan.total} ₽; расчётный остаток до {plan.remaining} ₽.")
+            else:
+                lines.append(f"Итого {plan.total} ₽; расчётный остаток {plan.remaining} ₽.")
+            blocks.append("\n".join(lines))
+        footer = ("Расчёт по ценам каталога: проверь цену и наличие билетов у продавца. "
+                  "Билеты покупаются отдельно, деньги с карты не списаны. "
+                  "Между событиями заложено 45 минут; время дороги проверь отдельно.")
+        if user.balance_cinema is None:
+            footer += " Остаток на кино неизвестен, поэтому кино исключено."
+        if self._source.is_synthetic or any(s.event.is_synthetic for p in plans for s in p.items):
+            footer += " Это тестовые события, покупка недоступна."
+        # Keep complete plan blocks within MAX's text limit; don't cut ticket URLs
+        # or silently lose budget caveats. Long real catalogue records may yield
+        # fewer alternatives than the domain search.
+        header = self._reported_balance(user)
+        while len(header + "\n\n" + "\n\n".join(blocks) + "\n\n" + footer) > 4000:
+            blocks.pop()
+        return Reply(header + "\n\n" + "\n\n".join(blocks) + "\n\n" + footer, buttons)
 
     def _fmt_event(self, scored: Scored, user: UserProfile) -> str:
         event, seance = scored.event, scored.seance
         lines = [
             f"• {event.name}",
-            f"  {event.price} ₽ · {_fmt_when(seance)}",
+            f"  {'от ' if event.price != event.max_price else ''}{event.price} ₽ · {_fmt_when(seance)}",
             f"  {event.place.name}",
         ]
         if user.home is not None:
@@ -397,12 +483,11 @@ class Dialog:
             lines[2] += f" · {km:.0f} км"
         if event.short_description:
             lines.append(f"  {event.short_description}")
-        # Rule 3: say why. A detected hidden persuasion is manipulation; a declared
-        # one is an explanation.
+        # Explain the actual score component; do not invent a cultural connection.
         reason = REASON_TEXT.get(scored.top_reason())
         if reason:
             lines.append(f"  Почему: {reason}")
-        if event.sale_link:
+        if event.sale_link and not (event.is_synthetic or self._source.is_synthetic):
             lines.append(f"  Билет: {event.sale_link}")
         return "\n".join(lines)
 
@@ -415,11 +500,10 @@ class Dialog:
         if not found:
             return Reply(
                 text=(
-                    "Под эти условия ничего не нашлось. "
-                    "Можно поискать шире — например, если готов(а) ездить дальше "
-                    "или ходить и днём."
+                    "Под эти условия ничего не нашлось. Можно обновить остаток "
+                    "или начать заново и выбрать другое время."
                 ),
-                buttons=["заново"],
+                buttons=["другой остаток", "заново"],
             )
 
         ranked = self._ranker.score(found, user, session.taste, today=now.date())
@@ -453,12 +537,12 @@ class Dialog:
 
         body = "\n\n".join(self._fmt_event(s, user) for s in picked)
         footer = (
-            f"\nОстаток {user.balance_general} ₽, сгорает через {_days_left()} дней."
+            f"\n{self._reported_balance(user)}"
         )
         if self._source.is_synthetic:
             footer += "\nДанные тестовые, ссылки нерабочие."
 
         return Reply(
             text=f"{header}\n\n{body}\n{footer}",
-            buttons=["ещё", "другое настроение", "сколько осталось"],
+            buttons=["собрать план", "ещё", "другое настроение", "сколько осталось"],
         )

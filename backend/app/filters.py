@@ -69,11 +69,19 @@ def is_reachable_time(seance: Seance, user: UserProfile) -> bool:
 
 
 def affordable(event: Event, user: UserProfile) -> bool:
-    """Price must fit the pool that would actually pay for it."""
-    pool = user.balance_cinema if event.is_cinema else user.balance_general
-    if pool is None:
-        return True
-    return event.price <= pool
+    """Unknown total permits browsing, not a funded plan; unknown cinema excludes it."""
+    if event.price < 0:
+        return False
+    if user.balance_general is not None and event.price > user.balance_general:
+        return False
+    if event.is_cinema:
+        from .config import CARD_RULES_2026
+
+        return (
+            user.balance_cinema is not None
+            and event.price <= min(user.balance_cinema, CARD_RULES_2026.cinema_cap)
+        )
+    return True
 
 
 def usable_seances(event: Event, user: UserProfile, now: datetime) -> list[Seance]:

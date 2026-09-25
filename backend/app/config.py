@@ -2,7 +2,7 @@
 Settings and, more importantly, the Pushkin Card rules.
 
 The card rules live here as DATA, not scattered through the code, because they are
-policy and policy moved twice this year. The brief also scores us on showing the user
+policy that may change. The brief also scores us on showing the user
 where a number came from and when it was last checked — so every rule carries its
 source and an as-of date, and the UI is expected to surface them.
 
@@ -44,21 +44,16 @@ class CardRules:
         return left_total, left_cinema
 
 
-# Checked 23 September 2026 against the official programme page.
-#
-# Open item: in July 2026 the Ministry of Culture published a draft raising the
-# limit to 7,000 RUB from 1 September 2026 and adding state circuses with a
-# 2,000 RUB cap. At the time of checking, the draft was in public discussion and
-# culture.ru still showed 5,000. VERIFY BEFORE SUBMISSION and update this block —
-# do not change anything else.
+# Official programme page, rechecked 25 September 2026. Proposals reported by
+# media are not enacted rules; verify the official source before the pilot.
 CARD_RULES_2026 = CardRules(
     total=5_000,
     cinema_cap=2_000,
-    as_of="2026-09-23",
+    as_of="2026-09-25",
     source="https://www.culture.ru/pushkinskaya-karta",
     note=(
-        "Проект Минкультуры о повышении до 7000 ₽ с 01.09.2026 на момент проверки "
-        "находился на общественном обсуждении; официальная страница показывала 5000 ₽."
+        "Общий лимит 5000 ₽; до 2000 ₽ внутри него на кино. "
+        "Остатки вводит пользователь; перед запуском проверьте актуальные правила."
     ),
 )
 

@@ -52,7 +52,7 @@ class Event:
 
     @property
     def is_cinema(self) -> bool:
-        """Cinema draws on its own sub-limit, so this decides which pool pays."""
+        """Cinema must fit both the total balance and its remaining sub-limit."""
         return self.category == "kino"
 
     def next_seance_after(self, moment: datetime) -> Seance | None:
@@ -78,6 +78,7 @@ class UserProfile:
     max_km: float = 10.0
     balance_general: int | None = None
     balance_cinema: int | None = None
+    balance_reported_at: str | None = None
     free_evenings: bool = True
     free_weekends: bool = True
     anchor: str | None = None           # "what got you recently" — see design/emotional-anchors.md

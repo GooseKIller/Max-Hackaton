@@ -158,8 +158,8 @@ def budget_fit(event: Event, user: UserProfile) -> float:
     """
     How well this price uses the money that is actually at risk.
 
-    An event leaving an unusable stub scores worse than one that fits cleanly. Two
-    pools, not one: cinema money cannot pay for a play and vice versa.
+    This is a ranking heuristic, not a separate wallet. All events draw on the total;
+    cinema additionally has a remaining sub-limit. The planner checks aggregate costs.
     """
     pool = user.balance_cinema if event.is_cinema else user.balance_general
     if not pool or pool <= 0:

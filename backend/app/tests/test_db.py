@@ -149,6 +149,7 @@ def test_taste_survives_a_restart(store: Store, source):
     first.handle("u1", "/start")
     first.handle("u1", "16")
     first.handle("u1", "3200")
+    first.handle("u1", "без кино")
     first.handle("u1", "вечером и в выходные")
     first.handle("u1", "что-то необычное")
     first.handle("u1", "интересно")
@@ -169,7 +170,7 @@ def test_taste_survives_a_restart(store: Store, source):
 
 def test_a_finished_conversation_keeps_recommending_after_restart(store: Store, source):
     first = Dialog(source, store)
-    for msg in ("/start", "16", "3200", "вечером и в выходные", "что-то необычное",
+    for msg in ("/start", "16", "3200", "без кино", "вечером и в выходные", "что-то необычное",
                 "пропустить", "пропустить", "пропустить", "пропустить", "пропустить"):
         first.handle("u1", msg)
 
@@ -180,7 +181,7 @@ def test_a_finished_conversation_keeps_recommending_after_restart(store: Store, 
 
 def test_impressions_are_logged(store: Store, source):
     d = Dialog(source, store)
-    for msg in ("/start", "16", "3200", "вечером и в выходные", "что-то необычное",
+    for msg in ("/start", "16", "3200", "без кино", "вечером и в выходные", "что-то необычное",
                 "пропустить", "пропустить", "пропустить", "пропустить", "пропустить"):
         d.handle("u1", msg)
 
