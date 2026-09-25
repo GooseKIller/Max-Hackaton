@@ -18,6 +18,8 @@ This is a source review and local test result, not certification of a deployed b
 
 No React/MAX UI application, authenticated mini-app endpoints, scheduled reminder
 worker, purchase integration or measured user study exists in the inspected tree.
+This paragraph describes **upstream**, not the later contribution: our branch now
+includes the standalone React planner and stateless API described below.
 The `balance` command is not a proactive reminder. A source adapter is not a live
 integration until access, parsing and data quality are tested.
 
@@ -37,6 +39,11 @@ integration until access, parsing and data quality are tested.
 5. **Research and copy:** reviewed `takes.md`, evidence register, interview questions,
    controlled task protocol, metric definitions, budget contract and source-note
    corrections. No invented interview outcomes or real-catalogue quality percentages.
+6. **Planner interface:** React/TypeScript at `/app/`, grouped settings-style inputs,
+   bottom sheets for interests/time, plan details, individual-event fallback,
+   light/dark styles and strict stateless Python API. Same-origin Docker build.
+   No read/write access to the bot's profiles, no invented authentication or purchase
+   analytics. [Setup and tests](../frontend/README.md), [copy](design/planner-copy.md).
 
 ## Best next work packages
 
@@ -46,14 +53,14 @@ Suggested ownership, to coordinate with the team before parallel edits:
 |---|---|---|---|
 | P0 | MAX integration hardening | Backend owner | Bot-start update handled; callbacks acknowledged; webhook secret validated; duplicate updates do not repeat actions; malformed updates cannot crash polling; verified in MAX mobile and web |
 | P0 | Real pilot catalogue | Research/data owner | Checked source snapshot or working API key; Kazan filter confirmed; live prices, availability links and durations reviewed; source/retrieval time retained |
-| P1 | Mini app for cards/plans | Frontend owner, with us on contract/tests | Bot opens app; server validates MAX initData; profile and plans load; loading/error/empty states work; explicit plan selection and seller click instrumentation |
+| P1 | MAX integration of the delivered planner UI | Frontend/backend owners | Register HTTPS app URL; validate initData before optional profile sync; verify mobile/web launch/back/links; add explicit selection/click instrumentation |
 | P1 | Reminder delivery | Us/backend after contract agreement | Explicit opt-in and opt-out, Moscow-time schedule, dated reported balance, per-user/year/rule deduplication, retry tests and live delivery check |
 | P1 | User validation + deck copy | Us/product, team recruits participants | 5 observed task sessions first; then exploratory interviews; results and counterexamples recorded; slide claims match evidence and implementation |
 | P2 | Better audience/mood ranking | Recommendation owner | Real independently labelled evaluation set; false exclusions checked; transient mood separated from long-term taste; measured improvement over simple baseline |
 
-The current branch is the budget-planning and reviewed-copy contribution. Keep the
-existing ranking approach; a frontend rewrite or a new recommendation architecture
-would overlap other team work without first improving the core demo.
+The current branch owns budget planning, its standalone interface and reviewed copy,
+as requested by the user. Keep the existing ranking approach. Coordinate authenticated
+MAX wiring with the backend owner; do not duplicate or replace their bot work.
 
 ## Remaining concrete risks found in source
 
@@ -95,12 +102,23 @@ tokens, this checks local startup and `/health`, not conversations inside MAX.
 OpenAPI is served at `/openapi.json`. SQLite lives in the named `bot-state` volume;
 `docker compose down` retains it. Don't add `-v` unless deliberately deleting it.
 
-Local Python test run: **79 passed** (Python 3.13); one dependency deprecation warning
+Before the UI contribution, the Python test run was **79 passed** (local and Docker).
+The expanded suite now has **112 passed** locally (Python 3.13) and inside the product
+image (Python 3.12); one dependency deprecation warning
 from Starlette's HTTPX test adapter, no failed assertions. Tests cover shared/cinema
 budgets, invalid/unknown input, restart, report-date stability, schedules, duplicate
 productions, text size, variable prices and actual FastAPI startup against the fixture.
-Docker Python 3.12: **79 passed**, the same dependency warning. `docker compose
-config --quiet` passes without a local `.env`. No token was needed for these checks.
+`docker compose config --quiet` passes without a local `.env`. The product image now
+builds React in a Node stage and serves its static files from Python; the separate
+browser-test image is not part of deployment. No token is needed for these checks.
+
+Browser suite: **20 passed** in isolated Linux Chromium, across desktop and mobile
+viewports. Covers preference-sheet apply/cancel, keyboard focus restoration, strict
+budgets, loading, retries, empty/expired states, 320px dark layout and real Python API
+requests (one per viewport). Native macOS browser launch was unavailable in the local
+sandbox, so the reproducible fallback is `frontend/Dockerfile.test`. This is not a
+Safari/MAX-device certification. The app was also visually inspected in the in-app
+browser. Frontend production build and formatter check pass.
 
 Image builds successfully. The uncached dependency-install layer took about 19 seconds
 on this machine; this alone is not a portable full-build-time guarantee. No MAX token
@@ -113,7 +131,7 @@ is unverified. A complete live MVP still needs the P0 packages above.
 > добавили сборку планов из 2–3 событий, корректный учёт общего остатка и кино-лимита,
 > обработку неизвестных сумм и проверки сценария. Исследование и продуктовые тексты
 > доработали с разделением фактов, гипотез и ещё не реализованных возможностей.
-> Предлагаем взять на себя этот модуль, тексты/пользовательскую проверку и затем
-> напоминания. По мини-приложению можем помочь с контрактом, состояниями и тестами;
-> сначала согласуем границы с тем, кто делает интерфейс. До демо приоритетны реальный
-> каталог и проверка бота в обеих версиях MAX.
+> Уже сделали React-интерфейс этих планов и stateless API, без доступа к профилям
+> бота. Формы и нижние окна — в привычной структуре мессенджера; тексты и состояния
+> собраны отдельно. До живого демо приоритетны реальный каталог, HTTPS и проверка
+> внутри MAX. Напоминания и синхронизация профиля пока остаются отдельными задачами.

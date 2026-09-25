@@ -3,10 +3,11 @@
 A MAX bot that helps young people (14–22) spend their Pushkin Card on events they will
 actually enjoy — before the money expires on 31 December.
 
-**Status: first working bot. The MVP scope is not fixed yet.**
+**Status: working bot and local budget-planner web interface; live MAX validation pending.**
 
 The contribution in this branch adds budget-aware 2–3-event plans to the existing
-bot. It uses **synthetic events with no working ticket purchases**. MAX mobile/web
+bot, plus a React interface at `/app/` and a stateless Python API. It uses
+**synthetic events with no working ticket purchases**. MAX mobile/web
 integration and real catalogue access still require testing with the team's keys.
 See the [current audit and work packages](docs/development-audit.md) and
 [research review](docs/research/validation.md).
@@ -17,6 +18,15 @@ python3 backend/console.py
 Runs the whole conversation in a terminal — no MAX token needed.
 See [backend/README.md](backend/README.md).
 
+To run the visual planner and Python API together:
+
+```bash
+docker compose up --build
+```
+
+Open `http://localhost:8000/app/`. See [frontend/README.md](frontend/README.md)
+for development, API contract, browser tests and the MAX integration boundary.
+
 ## Decisions made so far
 
 | Decision | Value |
@@ -25,8 +35,8 @@ See [backend/README.md](backend/README.md).
 | Audience | Pushkin Card holders, 14–22 |
 | Pilot region | Kazan / Republic of Tatarstan |
 | Backend | Python + FastAPI (allowed — JS/React is a recommendation, not a requirement) |
-| Front end | React (MAX UI) |
-| Scope (bot only vs bot + mini app) | **open** |
+| Front end | React + TypeScript, messenger-style grouped rows and bottom sheets; no MAX UI dependency yet |
+| Scope | Bot + standalone web planner implemented; authenticated profile sync and MAX launch remain pending |
 
 ## Documentation
 
@@ -36,6 +46,8 @@ See [backend/README.md](backend/README.md).
 | [docs/research/validation.md](docs/research/validation.md) | Evidence register, corrected inferences and interview/experiment protocol |
 | [docs/development-audit.md](docs/development-audit.md) | What exists, what is missing, priorities and contribution boundaries |
 | [docs/design/budget-plans.md](docs/design/budget-plans.md) | Planner contract, constraints and reproducible demo |
+| [docs/design/planner-copy.md](docs/design/planner-copy.md) | Executable screen states, product copy, demo and usability task |
+| [frontend/README.md](frontend/README.md) | React UI, stateless API, local/Docker run and tests |
 | [docs/compliance-check.md](docs/compliance-check.md) | Our plan checked against every constraint, with what still needs doing |
 | [docs/requirements.md](docs/requirements.md) | What the hackathon requires: constraints, submission checklist, scoring weights |
 | [docs/research/pushkin-card.md](docs/research/pushkin-card.md) | The program, the numbers, the pain, and what data we can actually get |
@@ -83,7 +95,9 @@ See [backend/README.md](backend/README.md).
 - [x] SQLite store: profiles, taste vectors, interaction log, session state, catalogue cache
 - [x] Plans in the bot: 2–3 events, aggregate budgets, schedule checks, estimated prices
 - [x] Unknown balances preserved; user-report date does not advance on every interaction
-- [ ] Measure the Docker build against the 5-minute cap (Docker wasn't running here)
+- [x] React planner, stateless API, grouped inputs, preference sheets, plan details and empty/error states
+- [ ] Connect the HTTPS mini-app to MAX and validate signed initData before profile sync
+- [ ] Measure a clean full product Docker build against the 5-minute cap on the submission machine
 - [ ] **Ask the organizers when the bot token is handed over** — everything MAX-side depends on this
 - [ ] Backup: if anyone on the team is self-employed, start a bot through business.max.ru (48h moderation)
 - [ ] Verify the MAX keyboard payload shape against a live token

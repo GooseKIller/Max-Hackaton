@@ -11,8 +11,10 @@ hypotheses. Evidence and its limits: [validation.md](../research/validation.md).
 > и объясняем подбор.
 
 This is a proposed value proposition, not evidence of increased spending. The current
-branch implements a bot with ranking and plans on a synthetic catalogue. A mini app,
-scheduled reminders and cultural-anchor matching remain separate work packages.
+branch implements a bot with ranking and plans plus a stateless React planner on a
+synthetic catalogue. Authenticated MAX mini-app integration, scheduled reminders and
+cultural-anchor matching remain separate work packages. UI states and demo wording:
+[planner-copy.md](planner-copy.md).
 
 ## Messages we can defend
 

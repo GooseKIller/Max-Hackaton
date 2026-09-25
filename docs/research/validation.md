@@ -136,7 +136,7 @@ the catalogue or claiming wins. Report raw counts alongside percentages.
 | Metric | Definition / instrument | Current status |
 |---|---|---|
 | Time to useful result | Start to participant-confirmed acceptable event/plan | Manual usability measurement; no automated “useful” label |
-| Plan choice rate | Explicitly selected plans / sessions shown a feasible plan | Selection event/UI still needed; showing a plan is not selecting it |
+| Plan choice rate | Explicitly selected plans / sessions shown a feasible plan | UI opens plan details; explicit firm-choice action/event still pending; opening is not selecting |
 | Seller click rate | Observed seller-link clicks / event cards shown | Not yet instrumented; typing an event title must not count |
 | Planned utilisation | Sum of selected quoted prices / reported B | Estimate only; neither actual spend nor annual utilisation |
 | Reminder opt-in | Explicit consent / eligible users offered reminders | Scheduler and opt-in not yet implemented |

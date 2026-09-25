@@ -33,6 +33,11 @@ docker compose up --build
 Then `http://localhost:8000/health`, with the webhook at `POST /webhook` and the
 generated OpenAPI document at `/openapi.json`.
 
+The same image serves the React budget planner at `http://localhost:8000/app/` and
+`GET /api/planner/meta`, `POST /api/planner/plans`. These endpoints are stateless:
+they do not load or modify bot profiles. No token is required for a local synthetic
+demo. See [frontend setup and limits](../frontend/README.md).
+
 ### When a key arrives
 
 Both keys are wired: drop the value into `.env` and nothing else changes.

@@ -59,10 +59,21 @@ without inventing money; restart with the same SQLite file preserves the report 
 .venv/bin/python -m pytest backend/app/tests -q
 ```
 
-## Future mini-app seam
+## Web interface and MAX boundary
 
-The domain function is independent of MAX and can back a future authenticated HTTP
-endpoint. Do not expose profiles based only on a query-string user ID. Validate MAX
-`initData` server-side and derive identity before reading the profile. Frontend can
-render structured Plan data and instrument explicit selections; this branch does not
-pretend that endpoint, bridge validation or UI already exists.
+This branch now includes a React interface at `/app/` and stateless endpoints
+`GET /api/planner/meta` / `POST /api/planner/plans`. They reuse `build_plans`, existing
+filters and ranker. The form provides its own exact budget, age, category and time
+choices; it does not borrow the bot's saved taste/mood or mutate its profile.
+No new recommendation algorithm or database migration is introduced.
+
+The UI groups plain input rows like a messenger settings screen. Interests and time
+open bottom sheets; close/cancel discards drafts, “Готово” applies them. Details have
+keyboard/native-back support, sums, venues and seller links only for non-synthetic
+data. Mobile, dark-mode and network/empty states have dedicated tests.
+
+Authenticated profile sync remains future work: validate MAX `initData` server-side
+and derive identity before reading a profile. Never use a query-string user ID.
+The optional Bridge script enables link/back behaviour, not authentication. Running
+the web UI locally does not establish a working MAX deployment.
+See [run/contract](../../frontend/README.md) and [screen copy](planner-copy.md).
