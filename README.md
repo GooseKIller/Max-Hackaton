@@ -5,6 +5,12 @@ actually enjoy — before the money expires on 31 December.
 
 **Status: first working bot. The MVP scope is not fixed yet.**
 
+The contribution in this branch adds budget-aware 2–3-event plans to the existing
+bot. It uses **synthetic events with no working ticket purchases**. MAX mobile/web
+integration and real catalogue access still require testing with the team's keys.
+See the [current audit and work packages](docs/development-audit.md) and
+[research review](docs/research/validation.md).
+
 ```bash
 python3 backend/console.py
 ```
@@ -26,6 +32,10 @@ See [backend/README.md](backend/README.md).
 
 | Document | What's in it |
 |---|---|
+| [docs/design/takes.md](docs/design/takes.md) | Reviewed product positioning and Russian copy, with implementation status |
+| [docs/research/validation.md](docs/research/validation.md) | Evidence register, corrected inferences and interview/experiment protocol |
+| [docs/development-audit.md](docs/development-audit.md) | What exists, what is missing, priorities and contribution boundaries |
+| [docs/design/budget-plans.md](docs/design/budget-plans.md) | Planner contract, constraints and reproducible demo |
 | [docs/compliance-check.md](docs/compliance-check.md) | Our plan checked against every constraint, with what still needs doing |
 | [docs/requirements.md](docs/requirements.md) | What the hackathon requires: constraints, submission checklist, scoring weights |
 | [docs/research/pushkin-card.md](docs/research/pushkin-card.md) | The program, the numbers, the pain, and what data we can actually get |
@@ -45,11 +55,13 @@ See [backend/README.md](backend/README.md).
 
 - We **cannot read a user's card balance** — no public API. The user tells us.
 - We **cannot sell tickets** — we hand off to the official purchase link.
-- The annual limit is policy that changed this year (5,000 → possibly 7,000 RUB).
-  It must be configuration, never hardcoded.
-- Cinema has its own separate sub-limit. Two budgets, not one. Cinema money gets spent
-  easily (~40% of funds, hitting the cap); the other ~3,000 RUB is where money dies.
-- **55% of cardholders are 15–18.** Design for a 16-year-old high schooler.
+- The official programme page lists **5,000 RUB for 2026**, including up to **2,000
+  RUB on cinema**. Rules live in configuration with a source and review date.
+- There is one total balance and a remaining cinema sub-limit inside it. We ask for
+  both; unknown cinema means recommendations without cinema, unknown total means
+  browsing without funded plans. No statistical claim about typical leftover money.
+- A 15–18-year-old in Kazan is a **proposed pilot segment**, to validate in interviews.
+  Regional age statistics are not a nationwide distribution.
 - Cool events outside the program **cannot** be paid with the card — the program is
   gated by an Expert Council. Our job is ranking what's already inside, not finding
   what's outside.
@@ -59,6 +71,7 @@ See [backend/README.md](backend/README.md).
 - [ ] Send the PRO.Культура.РФ key request (`partners@team.culture.ru`) — draft ready, needs team details
 - [ ] Submit the opendata.mkrf.ru key form in parallel — lower bar, may arrive first
 - [ ] Verify the current card limit and whether circuses are now included
+- [x] Review the official 2026 limit: 5,000 RUB, including up to 2,000 on cinema
 - [x] Synthetic Kazan catalogue in the real API schema, so the build isn't blocked on a key
 - [ ] Replace every synthetic number with real ones once a key arrives — and say so on the slides
 - [ ] Survey 20–40 people aged 14–22 in Kazan — include the bare-vs-bridged A/B and the three-register cringe test
@@ -68,6 +81,8 @@ See [backend/README.md](backend/README.md).
 - [x] Step 1 of the build plan: hard filters, dialog, MAX client, Docker
 - [x] Steps 2-3: affect labelling, taste vectors, ranking with diversity, onboarding quiz
 - [x] SQLite store: profiles, taste vectors, interaction log, session state, catalogue cache
+- [x] Plans in the bot: 2–3 events, aggregate budgets, schedule checks, estimated prices
+- [x] Unknown balances preserved; user-report date does not advance on every interaction
 - [ ] Measure the Docker build against the 5-minute cap (Docker wasn't running here)
 - [ ] **Ask the organizers when the bot token is handed over** — everything MAX-side depends on this
 - [ ] Backup: if anyone on the team is self-employed, start a bot through business.max.ru (48h moderation)

@@ -2,6 +2,10 @@
 
 Status: checked 23 September 2026, against live data for Kazan.
 
+**Review, 25 September:** observations below are preliminary team notes, not a
+controlled audit. Use [validation.md](validation.md) for claim status and permitted
+wording. Competitor superiority and causes of unused balances are not established.
+
 ## The hypothesis we started with
 
 > The events offered by Gosuslugi Kultura are bad. Teenagers don't want classic theatre
@@ -13,21 +17,17 @@ Three separate claims. We checked each one.
 
 ---
 
-## Claim 1: "The main holders are 14–18" — CONFIRMED
+## Claim 1: "The main holders are 14–18" — regional signal, segment to validate
 
-**Fact.** VTB reports that **55% of all cardholders are aged 15–18**.
-Ministry-level statements name **17 years old** as the core age of the program.
-Media reports identify 15–17 year olds as the most active users.
+The linked Sib.fm article reports **55% aged 15–18** in a Novosibirsk regional
+context. This does not establish the nationwide median or the best segment for Kazan.
+A 15–18-year-old choosing an outing independently is our proposed pilot segment;
+compare with older cardholders during interviews.
 
-So: the median user is a **high school student**, not a university student. Our product
-should be designed for a 16-year-old, not a 21-year-old.
-
-**Second useful number from the same source:** in one region, about **40% of all card
-money went to cinema** — that is, users push the 2,000 RUB cinema sub-limit to its cap.
-
-This tells us where the money actually dies. Cinema money gets spent easily; it is the
-remaining **3,000 RUB of "everything else"** that people struggle to use. That is the
-part of the budget our product should fight for.
+The same article reports about **40% of actual regional spending on cinema**. This
+does not measure each person's cap use or the amount left unspent. The claim that
+the remaining 3,000 RUB “dies” is withdrawn. Investigate unfamiliar non-cinema events
+as a discovery hypothesis, not as established loss statistics.
 
 ---
 
@@ -181,7 +181,7 @@ Concrete things we can do that nobody does:
 2. **Filter by when a teenager is actually free** — evenings and weekends, not 10:00 on
    a Tuesday.
 3. **Learn taste** from a short quiz plus what they click, and rank accordingly.
-4. **Plan the budget** — two pools (cinema and everything else) against days remaining.
+4. **Plan the budget** — one shared total and a remaining cinema sub-limit inside it.
 5. **Remind before the money burns**, in a messenger they already have open.
 6. **Surface the long tail** — the power plant tour, the felting workshop, the immersive
    show — which is the part that makes the product feel non-boring.
@@ -195,8 +195,8 @@ Concrete things we can do that nobody does:
 - [ ] Check whether `ageRestriction` is populated reliably, or often defaults to 0/6.
 - [ ] Verify the claim that pop concerts are banned against the actual government
       decree (Постановление № 1521), not media summaries.
-- [ ] Find out whether teenagers even know the non-cinema money exists as a separate
-      pool. This is a survey question.
+- [ ] Check understanding of the shared total and cinema sub-limit, without teaching
+      users the incorrect model of two independent wallets.
 
 ## Sources
 

@@ -21,7 +21,7 @@ python3 backend/console.py
 
 ```bash
 cp .env.example .env    # put MAX_BOT_TOKEN in it
-python3 backend/runner.py
+python3 --env-file=.env backend/runner.py
 ```
 
 ### As a service (webhook, for deployment)
@@ -96,8 +96,8 @@ Three deliberate boundaries:
    we could iterate on the conversation before having a token.
 2. **Nothing above `catalog.py` knows where events come from.** The fixture was
    generated in the real API's schema precisely so this swap is free.
-3. **Card limits live only in `config.py`.** They are policy and policy moved twice
-   this year. Never hardcode one anywhere else.
+3. **Card limits live only in `config.py`.** They can change. Keep a source and review
+   date with them; do not treat media reports about proposals as current rules.
 
 ## Things that are deliberately not here yet
 
@@ -105,8 +105,8 @@ Three deliberate boundaries:
 - **A dense user embedding.** `taste_weights` is already a sparse one. A learned
   dense vector needs the interaction log to fill up first — see
   [../docs/design/database.md](../docs/design/database.md).
-- **Persistence.** Sessions are in memory and die with the process. Fine for a demo;
-  one place to change when it is not.
+- **Scheduled reminders.** The balance command is a reply to a user, not a background
+  scheduler. Opt-in, cancellation, delivery deduplication and retry remain to build.
 - **The mini app.** Scope is still open — see the open items in the root README.
 - **Any ML at runtime.** By design: see
   [../docs/compliance-check.md](../docs/compliance-check.md). Labelling and embedding
@@ -122,7 +122,37 @@ Three deliberate boundaries:
 - **The MAX keyboard payload shape is unverified.** It is written from the docs but
   has not been tested against a live token. It is isolated in `max_client.py` for
   that reason.
-- **Docker is untested on this machine** — Docker was not running when this was
-  written. The build must be measured against the 5-minute cap before submission.
+- **Docker image and tests checked in this branch** — the image builds and all 79
+  tests pass on container Python 3.12. Live MAX mobile/web validation is still pending.
 - **No location question yet**, so the distance filter is inactive in the default
   flow. `UserProfile.home` and the filter both work; the dialog just does not ask.
+
+## Budget plans in this branch
+
+After onboarding, select `собрать план` or type `/plan`. The bot searches 2–3-event
+combinations among the top 30 ranked distinct events, enforces the shared total and
+remaining cinema allowance, and rejects overlapping slots (45-minute transfer buffer).
+It returns up to three distinct alternatives, not necessarily three.
+
+Unknown overall balance allows browsing without a funded plan. Unknown cinema
+allowance excludes cinema. Prices are estimates from the catalogue, not reserved seats.
+No balance is debited. Details, limitations and demo steps:
+[budget-plans.md](../docs/design/budget-plans.md).
+
+SQLite persists profiles and sessions when a Store is supplied by console/runner/API.
+`balance_reported_at` now advances only on explicit total-balance input. Earlier
+versions updated that column on every message; historical timestamps from those
+versions must not be used as evidence of a fresh balance confirmation.
+
+For a clean local environment:
+
+```bash
+python3 -m venv .venv
+.venv/bin/python -m pip install -r backend/requirements.txt
+.venv/bin/python -m pytest backend/app/tests -q
+.venv/bin/python backend/console.py
+```
+
+The polling runner reads environment variables, not `.env` automatically. With Python
+3.12+ use `.venv/bin/python --env-file=.env backend/runner.py`. Docker Compose reads
+its configured env file itself.

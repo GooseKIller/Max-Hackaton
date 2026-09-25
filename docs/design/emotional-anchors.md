@@ -2,6 +2,13 @@
 
 Design note. Status: proposed. Research-backed, not yet built.
 
+**Review, 25 September:** this is a design hypothesis, not a validated feature.
+Market anecdotes do not establish causal effects of our recommendations. Numerical
+effects and psychological generalisations below are research leads, not approved
+pitch claims. Use [takes.md](takes.md) and [validation.md](../research/validation.md).
+The «Война и мир → Женитьба» wording/price/showtime is an unverified illustration;
+do not ship it. Use curated, sourced connections and an optional skip path.
+
 ## The hypothesis
 
 Stated in our own words: *two people looking at the same event listing are not equally
@@ -77,12 +84,13 @@ found:
 > scenarios, whereas emotions were found to introduce noise due to their transient
 > nature.**
 
-Read that against our situation. Our biggest weakness is cold start — roughly 1.8
-tickets per cardholder per year, perishable inventory, no usable collaborative
-signal. Mood is reported to help **most** exactly where we are **weakest**.
+Our launch has no historical recommendation dataset and time-limited inventory.
+Mood is a candidate signal to test here, not an established improvement in our domain.
+The earlier 1.8 tickets/year figure is withdrawn: its cited source does not support it.
 
-And the corollary is a warning: do not try to detect momentary emotion. It is noise.
-Ask about mood and intent for the session, which is stable over hours.
+The cited finding is from Piazza et al. (2017) on fashion preferences, described by
+the survey. It does not establish that emotions always add noise or that mood buttons
+improve cultural-event recommendations. Ask voluntary session intent and test it here.
 
 Also useful: mood-based conversational onboarding "encourages richer, more sincere
 feedback without forcing users into mechanical rating tasks." A 16-year-old will
@@ -105,7 +113,8 @@ an album, a game, a book.
 - **What it gives us:** a rich, high-confidence taste vector from a *single answer* —
   which is exactly what a cold-start system needs.
 
-This is the strongest signal available to us, and it costs one question.
+This might be an informative signal for some users. Test its usefulness and the
+effort of answering against simple interest choices; keep it optional.
 
 ### (b) The mood — situational, hours
 

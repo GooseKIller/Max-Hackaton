@@ -17,6 +17,11 @@ than a plausible-looking one.
 
 ## Why synthetic
 
+Review note, 25 September: the proportions below describe this generated fixture.
+The earlier team observations do not include a reproducible real-catalogue sample
+and labelling protocol. Do not quote these percentages as measured Kazan shares or
+claim that synthetic ranking results establish real-world preference or attendance.
+
 The PRO.Культура.РФ API key is issued "upon a partnership arrangement" — a human
 process with an unknown lead time, and our deadline is a week out. Waiting is not a
 plan. See [../docs/outreach/api-key-request.md](../docs/outreach/api-key-request.md)

@@ -2,6 +2,11 @@
 
 Design note. Status: proposed. This is a constraint on everything else we build.
 
+**Review, 25 September:** treat the proposed tone as a testable editorial choice.
+The literature does not establish which wording wins for our Kazan users. Prefer
+[reviewed copy](takes.md) and [validation protocol](../research/validation.md) for
+presentation claims; behavioural outcomes below are hypotheses, not measured results.
+
 ## The take
 
 > Trying to be on the same wavelength as young people feels *worse* to young people
@@ -43,19 +48,19 @@ Persuasion knowledge is **developmental**. Research on 11–14 year olds shows t
 knowledge of advertisers' tactics increases over that period, **together with distrust
 of advertising claims.**
 
-Our audience is **55% aged 15–18**. They have just finished installing the detector, and
-it is on a hair trigger. We are addressing the single most sensitive age band for
-exactly this failure mode.
+The proposed pilot includes 15–18-year-olds. The cited regional 55% figure does not
+establish a national audience distribution or uniquely high sensitivity to persuasion.
 
 ## 2. The numbers
 
-From a global study of 500+ young consumers across eight countries:
+From SKIM's qualitative study of 543 people aged **18–25** across eight countries
+(none in Russia); these are brand perceptions, not our pilot's copy-test results:
 
 | Finding | Share |
 |---|---|
 | Value transparency above all else | **44%** |
 | Reject brands for "trying too hard" with forced messaging | **~33%** |
-| Have unfollowed a brand for feeling inauthentic | 20% |
+| Earlier “20% unfollowed” claim | withdrawn: not supported by the linked SKIM report |
 
 The most-cited specific tell, repeatedly, is **overuse of slang.**
 
@@ -71,16 +76,15 @@ We have three compounding risk factors:
 
 1. **We are adjacent to a state program.** The Pushkin Card is government. For a
    teenager it is associated with school — with being taken somewhere as a group, on a
-   Tuesday morning, by a teacher. Our own catalogue measurement showed that 22% of
-   Kazan events are exactly that. If our product reads as an extension of school, it is
-   dead on arrival.
+   Tuesday morning, by a teacher. This association needs interviews. The 22% share
+   belongs to the synthetic catalogue and is not a verified real-Kazan measurement.
 
 2. **Our best feature is a persuasion attempt.** The bridge — "ты смотрела «Войну и
    мир», вот тебе «Женитьба»" — *is* a recommendation with intent. Per the Persuasion
    Knowledge Model, if it is perceived as a tactic it gets discounted.
 
-3. **Our reminder feature is a reactance trigger.** "Твои деньги сгорят!" is pressure.
-   Pressure threatens autonomy. Reactance says this produces resistance, not action.
+3. **Reminders may feel pressuring.** Test wording and frequency. A calm factual
+   deadline with explicit opt-in can be useful; resistance is not a guaranteed outcome.
 
 ## 4. What we do about it
 
@@ -113,9 +117,8 @@ So do the opposite: **state plainly why we are showing something.**
 
 > «Показываем, потому что ты отметил „Войну и мир“ и свободен в субботу вечером.»
 
-A detected hidden persuasion is manipulation. A declared one is just an explanation —
-there is nothing left to catch us at. This also converts our weakest moment into a
-trust-building one.
+An accurate explanation makes the recommendation inspectable. It does not guarantee
+trust or make persuasion incapable of manipulation. Reasons must reflect real inputs.
 
 And it costs nothing, because **the brief already requires it**: separate facts,
 calculations and recommendations so the user understands where a result came from. The
@@ -135,7 +138,8 @@ adjective.
 Reactance is triggered by imperatives. So:
 
 - ❌ «Не упусти! Деньги сгорят 31 декабря!»
-- ✅ «На карте 3 200 ₽. Сгорают 31 декабря — это 68 дней.»
+- ✅ «Последний указанный остаток — 3 200 ₽, от [дата]. Он ещё актуален?
+  До конца года [N] дней.»
 
 State the fact, offer options, let them decide. No countdown animations, no urgency
 theatre. The fact is urgent enough on its own, and delivering it flatly is what makes

@@ -1,6 +1,10 @@
 # How we rank events
 
-Design note. Status: proposed, not yet built.
+Design note. Updated 25 September: filters, sparse vectors, a five-card chat quiz,
+heuristic ranking and MMR are implemented. Budget plans are in `app/plans.py`.
+Mini-app swipes, dense embeddings and tag co-occurrence remain proposals.
+See [validation](../research/validation.md) and [budget contract](budget-plans.md).
+Weights below are engineering defaults, not empirically optimised parameters.
 
 The question this answers: *how do we pick 3 events out of ~1,100 that a specific
 teenager will actually want, when we barely have any data about them?*
@@ -13,17 +17,13 @@ The instinct — "people with similar tastes like similar things" — is collabo
 filtering. It is the right instinct and the wrong tool for this problem. Three reasons,
 in order of how badly they hurt.
 
-### Reason 1: we get about two signals per user per year
+### Reason 1: the MVP has no interaction history to train on
 
-VTB issued 7.3 million cards over 9 months of 2026, and 13 million tickets were bought
-on them. That is **roughly 1.8 tickets per cardholder in nine months.**
-
-Collaborative filtering needs on the order of 20+ interactions per user before the
-user's row in the matrix means anything. We would have two. At the hackathon we will
-have a few dozen test users — the matrix would be almost entirely empty.
-
-TikTok gets hundreds of signals per user per *session*. We get two per *year*. This is
-not a difference of degree.
+The earlier 7.3m cards / 13m tickets calculation is not supported by its linked
+source, and a universal “20 interactions” threshold was not established. Our
+practical reason is sufficient: no historical user-item dataset is available to
+this MVP. Start with content features and explicit feedback, then compare alternatives
+when representative interactions exist. Purchases and UI interactions differ.
 
 ### Reason 2: our inventory is perishable
 
@@ -32,8 +32,8 @@ gets better and better as people interact with it.
 
 A specific screening of «Кара Карамазовых» on 27 September happens **once** and then
 ceases to exist. By the time an event has accumulated enough interactions to be
-understood, it is over. Item-ID-based collaborative filtering can never warm up here —
-every item is permanently cold.
+understood, it may be over. This makes showtime-ID collaborative filtering difficult
+at launch; recurring productions, venues and tags may provide longer-lived signals.
 
 ### Reason 3: we cannot see the conversion
 
@@ -55,7 +55,7 @@ same session.**
 
 We can copy that exactly. The fix is to **change what we count.**
 
-Stop counting attendance (≈2/year). Start counting micro-interactions:
+Record explicit micro-interactions, with their limitations:
 
 | Signal | Weight | How often we get it |
 |---|---|---|
@@ -145,9 +145,9 @@ promoted elsewhere. Without this term a theatre kid gets more theatre forever, a
 product becomes exactly as boring as the thing it replaces. This term is what surfaces
 the power plant tour.
 
-**`budget_fit`** — how well the price uses the *right* remaining pool. An event that
-leaves an unusable 150 RUB stub scores worse than one that fits cleanly. Note this is
-two pools, not one: cinema money and everything-else money.
+**`budget_fit`** — a price-share heuristic. The planner checks the aggregate total
+and remaining cinema sub-limit; these are not independent wallets. Minimum leftover
+is one optional plan mode, not a substitute for relevance.
 
 **`convenience`** — travel time and time-of-day fit.
 
@@ -245,7 +245,7 @@ In order. Each step is demoable on its own.
 2. **Quiz + content-based taste.** Tags and categories, cosine similarity.
 3. **Swipe feedback loop** in the mini app, updating the vector live.
 4. **Diversity and the wildcard slot.**
-5. **Budget planning** — fit a set of events to the remaining balance in both pools.
+5. **Budget planning** — fit a set to the total balance and remaining cinema allowance.
 6. **Explanations.**
 7. *Later, not for the MVP:* the tag co-occurrence graph.
 
@@ -264,7 +264,7 @@ All four need the API key to answer.
 
 ## Sources
 
-- [VTB: 7.3 mln cards and 13 mln tickets over 9 months of 2026](https://sib.fm/news/2026/07/27/vtb-naibolee-aktivno-pushkinskuyu-kartu-oformlyayut-starsheklassniki)
+- [Regional VTB reporting via Sib.fm; does not support the withdrawn 7.3m/13m claim](https://sib.fm/news/2026/07/27/vtb-naibolee-aktivno-pushkinskuyu-kartu-oformlyayut-starsheklassniki)
 - [cointegrated/rubert-tiny2](https://huggingface.co/cointegrated/rubert-tiny2)
 - [intfloat/multilingual-e5-small](https://huggingface.co/intfloat/multilingual-e5-small)
 - Evidence for the filtering problem: [hypothesis-boring-events.md](../research/hypothesis-boring-events.md)

@@ -2,6 +2,10 @@
 
 Status: research notes, September 2026. Written before we fixed the MVP scope.
 
+**Review, 25 September:** use [validation.md](validation.md) for the reviewed evidence
+register. Scale, regional adoption and app-rating figures below remain source leads
+unless explicitly checked there. They must not become presentation facts by repetition.
+
 This file separates three things on purpose, because the track brief demands it:
 
 - **Fact** — taken from an official source or a source we could check.
@@ -19,7 +23,7 @@ concerts, exhibitions, cinema.
 **Fact.** In 2026 the card holds **5,000 RUB per year**, of which **2,000 RUB may go to
 cinema**. Source: the official culture.ru program page.
 
-**Fact (pending).** In July 2026 the Ministry of Culture published a draft that raises
+**Unverified policy lead, not a current rule.** Media reported a draft that raises
 the limit to **7,000 RUB from 1 September 2026**, adds **state circuses** as an allowed
 category with a cap of 2,000 RUB, and keeps the 2,000 RUB cinema cap. At the time we
 checked, the draft was in public discussion and the official culture.ru page still
@@ -49,8 +53,7 @@ This is the single most important technical constraint we found.
 | Participating institutions | 12,550 (up from 12,128) | 2025 | same |
 | State subsidy | 10.59 bn RUB | 2025 | same |
 | Tickets sold | ~102 million (+30% YoY) | 2025 | industry reporting |
-| Cards issued by VTB | 7.3 million | 9 months of 2026 | bank reporting |
-| Tickets bought on those cards | 13 million | 9 months of 2026 | bank reporting |
+| Cards/tickets in an earlier draft | withheld | mismatched source/period | original reporting required; do not derive purchases per user |
 
 **Signal.** Roughly 5,000 RUB × 13 million people is a ~65 bn RUB annual pool of
 "must be spent on culture, or it disappears" money. The 10.59 bn RUB subsidy figure
@@ -198,9 +201,9 @@ Constraints we now know are hard:
    with a visible "rules as of <date>, source: <link>" line in the UI. The brief scores
    us on showing data provenance and freshness.
 
-4. **Two sub-limits, not one budget.** Money for cinema and money for everything else
-   are separate pools. Any planner we build has to model both, or it will give advice
-   that fails at checkout.
+4. **One total balance and a cinema sub-limit inside it.** All ticket costs count
+   toward the total; cinema costs also count toward its remaining allowance. The
+   planner must check both, including previous cinema spending reported by the user.
 
 Where the opportunity is:
 
