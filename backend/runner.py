@@ -11,6 +11,7 @@ Use this during development. The deployed version should use the webhook in
 from __future__ import annotations
 
 import logging
+import os
 import sys
 from pathlib import Path
 
@@ -22,7 +23,11 @@ from app.db import Store  # noqa: E402
 from app.dialog import Dialog  # noqa: E402
 from app.max_client import MaxClient  # noqa: E402
 
-logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(message)s")
+_level = logging.DEBUG if os.getenv("BOT_DEBUG") else logging.INFO
+logging.basicConfig(level=_level, format="%(asctime)s %(levelname)s %(message)s")
+# httpx logs every request at INFO, which drowns our own lines.
+for _noisy in ("httpx", "httpcore", "hpack"):
+    logging.getLogger(_noisy).setLevel(logging.WARNING)
 log = logging.getLogger("runner")
 
 
@@ -61,7 +66,9 @@ def main() -> None:
                     # after an error without a restart — a scored criterion.
                     log.exception("dialog failed for %s", message.user_id)
                     continue
-                client.send_message(message.chat_id, reply.text, reply.buttons)
+                if message.callback_id:
+                    client.answer_callback(message.callback_id)
+                client.send_message(message.chat_id, reply.text, reply.buttons, reply.image_url)
     except KeyboardInterrupt:
         log.info("stopping")
     finally:

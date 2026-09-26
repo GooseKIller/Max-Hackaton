@@ -34,12 +34,16 @@ def start(d):
     send(d, "16")
 
 
-def finish(d):
-    send(d, "вечером и в выходные")
-    send(d, "красиво")
-    for _ in range(5):
-        if d._session("u").step is Step.QUIZ:
-            send(d, "пропустить")
+def finish(d, swipes=3):
+    """Get past onboarding into a warmed-up feed.
+
+    The flow used to ask about time and mood and then run a five-card quiz. It now
+    drops straight into the swipe feed, so "finishing" onboarding means swiping a
+    few cards — which is also what unlocks the plan button.
+    """
+    for _ in range(swipes):
+        if d._session("u").step is Step.SWIPE:
+            send(d, "не моё")
 
 
 @pytest.mark.parametrize("bad", ["-500", "12.5", "1000–2500", "500 и 200", "5000 рублей 2000 кино", "99999999999"])
@@ -65,10 +69,14 @@ def test_cinema_is_asked_not_inferred_from_total():
     d = Dialog(Source())
     start(d)
     send(d, "1 500 ₽")
-    assert d._session("u").step is Step.ASK_CINEMA
+    # Onboarding no longer asks about cinema: it starts without it rather than
+    # spending a step before the user has seen anything at all.
+    assert d._session("u").step is Step.SWIPE
     assert d._session("u").profile.balance_cinema is None
+    # But it must be asked, never inferred from the total, when it matters.
+    send(d, "другой остаток")
     send(d, "2000")
-    assert d._session("u").step is Step.ASK_CINEMA
+    assert d._session("u").step is Step.EDIT_CINEMA
     send(d, "500")
     assert d._session("u").profile.balance_cinema == 500
 
@@ -79,7 +87,8 @@ def test_plan_is_reachable_and_disclaims_test_data_without_dead_links():
     send(d, "3000")
     send(d, "без кино")
     finish(d)
-    assert "собрать план" in send(d, "что посмотреть").buttons
+    # Match the label, not its decoration: buttons carry a leading icon.
+    assert any("собрать план" in b for b in send(d, "не моё").buttons)
     reply = send(d, "собрать план")
     assert "Итого" in reply.text and "остаток" in reply.text
     assert "тестовые" in reply.text and "покупка недоступна" in reply.text

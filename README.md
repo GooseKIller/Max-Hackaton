@@ -53,6 +53,8 @@ for development, API contract, browser tests and the MAX integration boundary.
 | [docs/research/pushkin-card.md](docs/research/pushkin-card.md) | The program, the numbers, the pain, and what data we can actually get |
 | [docs/research/hypothesis-boring-events.md](docs/research/hypothesis-boring-events.md) | Testing "the events are boring": what held up, what didn't, and the reframed product idea |
 | [docs/design/database.md](docs/design/database.md) | The schema, and why the taste vector already *is* a user embedding |
+| [docs/design/anti-engagement.md](docs/design/anti-engagement.md) | **The principle:** unlike TikTok, our goal is to get the user out fast |
+| [docs/design/timing-signals.md](docs/design/timing-signals.md) | How long someone takes to answer, and why a slow "no" counts for less |
 | [docs/design/ranking.md](docs/design/ranking.md) | How we rank events: why collaborative filtering won't work, and what to do instead |
 | [docs/design/emotional-anchors.md](docs/design/emotional-anchors.md) | Why people actually go: narrative transportation, mood vs emotion, and the bridge mechanic |
 | [docs/design/tone.md](docs/design/tone.md) | Why trying to sound young backfires, and the register rules that follow |
@@ -62,6 +64,14 @@ for development, API contract, browser tests and the MAX integration boundary.
 | [data/README.md](data/README.md) | The synthetic Kazan catalogue: why it exists, how it's shaped, what the funnel shows |
 | [docs/outreach/api-key-request.md](docs/outreach/api-key-request.md) | Draft letter requesting the PRO.Культура.РФ API key, plus the fallback routes |
 | [docs/brief/brief-ru.md](docs/brief/brief-ru.md) | The organizers' original brief (Russian, parsed from PDF) |
+
+## The principle
+
+TikTok wants you to stay forever. **We want you out of the bot and into a theatre as
+fast as possible.** A 90-second session ending in a tapped ticket is a success; a
+20-minute session is a failure. See [docs/design/anti-engagement.md](docs/design/anti-engagement.md)
+— several design decisions follow from this and would have gone the other way under
+an engagement goal.
 
 ## Key facts to keep in mind
 
@@ -98,8 +108,8 @@ for development, API contract, browser tests and the MAX integration boundary.
 - [x] React planner, stateless API, grouped inputs, preference sheets, plan details and empty/error states
 - [ ] Connect the HTTPS mini-app to MAX and validate signed initData before profile sync
 - [ ] Measure a clean full product Docker build against the 5-minute cap on the submission machine
-- [ ] **Ask the organizers when the bot token is handed over** — everything MAX-side depends on this
-- [ ] Backup: if anyone on the team is self-employed, start a bot through business.max.ru (48h moderation)
+- [x] Bot token in hand and verified: @t179_hakaton_max_bot
+- [ ] Message the bot from MAX, then finish `probe_max.py --chat <id>` — keyboards and **proactive sends**
 - [ ] Verify the MAX keyboard payload shape against a live token
 - [ ] Architectural rule: no ML at runtime — label and embed offline, ship artifacts
 - [ ] Test the full scenario in **both** mobile and web MAX

@@ -20,6 +20,10 @@ RUN pip install --no-cache-dir -r requirements.txt
 
 COPY backend/ ./backend/
 COPY data/kazan_events.json ./data/kazan_events.json
+# platform-api2.max.ru chains to the Russian Trusted Root CA, which is in neither
+# certifi nor the slim image's trust store. Without it every call to MAX fails with
+# CERTIFICATE_VERIFY_FAILED. See backend/app/config.py:ssl_context.
+COPY certs/ ./certs/
 COPY --from=frontend /ui/dist ./frontend/dist
 
 EXPOSE 8000

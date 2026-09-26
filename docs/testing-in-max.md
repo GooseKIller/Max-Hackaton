@@ -101,6 +101,68 @@ reachable, and containerisation explicitly does not replace a live product in MA
 3. **Can the bot's display name and description be set by us** after handover?
 4. **Is there hosting for the mini app**, or do we arrange HTTPS ourselves?
 
+## TLS: the Russian Trusted Root CA
+
+**If your first call to MAX dies with `CERTIFICATE_VERIFY_FAILED`, this is why.**
+
+`platform-api2.max.ru` presents a certificate chained to *"The Ministry of Digital
+Development and Communications — Russian Trusted Root CA"*. That root is in neither
+`certifi` nor the default macOS/Linux trust stores. Browsers in Russia usually have
+it preinstalled, which is exactly why the API looks fine in a browser and fails in
+code.
+
+Verified locally:
+
+```
+issuer=C=RU, O=The Ministry of Digital Development and Communications,
+       CN=Russian Trusted Sub CA
+subject=CN=*.max.ru, O=MAX LLC
+Verify return code: 20 (unable to get local issuer certificate)   # without the root
+Verify return code: 0 (ok)                                        # with it
+```
+
+Handled in the repo: the root is committed at
+`certs/russian-trusted-root-ca.pem` (a public government root certificate, safe to
+commit; SHA-256 `D2:6D:2D:02:31:B7:C3:9F:92:CC:73:85:12:BA:54:10:35:19:E4:40:5D:68:B5:BD:70:3E:97:88:CA:8E:CF:31`,
+valid to 2032-02-27), and `backend/app/config.py:ssl_context()` **adds** it to the
+normal public bundle. Every outbound client uses that context.
+
+It adds one root; it does not replace the bundle and it does not disable
+verification. `verify=False` would also have silenced the error, and would also have
+made the connection unauthenticated — not a trade worth making for a client carrying
+a bot token.
+
+The Dockerfile copies `certs/` for the same reason; a slim image has no more idea
+about this root than a laptop does.
+
+## Verified against a live token
+
+Checked 26 September 2026 with the organizers' token.
+
+| Question | Answer |
+|---|---|
+| `GET /me` | **works** — `@t179_hakaton_max_bot`, id 417224539, `is_bot: true` |
+| `GET /updates` long polling | **works** — HTTP 200, returns a `marker` |
+| Does the `.env` file get read? | It does **now**. It did not before — see below. |
+| Keyboard payload shape | still unverified — needs someone to message the bot |
+| Update shape for a button press | still unverified — same |
+| Proactive sends | **still unverified, and still the most important open question** |
+
+To finish the list, message the bot from MAX, then:
+
+```bash
+python3 backend/probe_max.py --wait 30      # prints the chat id and the raw update
+python3 backend/probe_max.py --chat <id>    # sending, keyboards, proactive
+```
+
+### A trap worth knowing about
+
+`.env` was documented everywhere as the place to put the token, and nothing loaded
+it: `os.getenv` reads the process environment, and only Docker Compose was reading
+`env_file` on its own. So every local command reported "MAX_BOT_TOKEN is not set" at
+someone who had just set it. `config.py` now loads `.env` itself, and a real
+environment variable still wins over the file.
+
 ## Things that are still unverified in our code
 
 Written from the docs, never run against a live token. All isolated in

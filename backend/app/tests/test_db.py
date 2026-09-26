@@ -150,9 +150,8 @@ def test_taste_survives_a_restart(store: Store, source):
     first.handle("u1", "16")
     first.handle("u1", "3200")
     first.handle("u1", "без кино")
-    first.handle("u1", "вечером и в выходные")
-    first.handle("u1", "что-то необычное")
-    first.handle("u1", "интересно")
+    first.handle("u1", "пойду")
+    first.handle("u1", "не моё")
 
     weights_before = dict(store.load_taste("u1").weights)
     assert weights_before, "nothing was learned from the quiz"
@@ -163,20 +162,20 @@ def test_taste_survives_a_restart(store: Store, source):
 
     assert session.profile.age == 16
     assert session.profile.balance_general == 3200
-    assert session.mood == "что-то необычное"
+    assert session.profile.balance_general == 3200
     assert session.step is not Step.NEW, "the conversation restarted from scratch"
     assert session.taste.weights == pytest.approx(weights_before)
 
 
 def test_a_finished_conversation_keeps_recommending_after_restart(store: Store, source):
     first = Dialog(source, store)
-    for msg in ("/start", "16", "3200", "без кино", "вечером и в выходные", "что-то необычное",
-                "пропустить", "пропустить", "пропустить", "пропустить", "пропустить"):
+    for msg in ("/start", "16", "3200", "не моё", "пойду", "не моё"):
         first.handle("u1", msg)
 
     second = Dialog(source, store)
-    reply = second.handle("u1", "ещё")
-    assert "•" in reply.text, "a returning user was not given recommendations"
+    reply = second.handle("u1", "не моё")
+    # The feed renders one card: title, price line, venue. No bullet list.
+    assert "₽" in reply.text, "a returning user was not given an event"
 
 
 def test_impressions_are_logged(store: Store, source):
@@ -194,3 +193,36 @@ def test_impressions_are_logged(store: Store, source):
 def test_labels_are_persisted(store: Store, source):
     Dialog(source, store)
     assert store.stats()["labels"] > 0
+
+
+def test_a_session_from_an_older_flow_is_not_resumed_into_it(store: Store, source):
+    """
+    Regression: the conversation changed from a five-card quiz plus a
+    three-events-at-once view into a swipe feed. Returning users were rehydrated
+    at their stored step, which no longer meant what it used to, and landed in the
+    removed view — the bot "started talking nonsense" after a deploy.
+
+    Who they are and what they like must survive; where they were must not.
+    """
+    first = Dialog(source, store)
+    for msg in ("/start", "16", "3200", "не моё", "пойду"):
+        first.handle("u1", msg)
+
+    taste_before = dict(store.load_taste("u1").weights)
+    assert taste_before
+
+    # A row written by an older shape of the conversation.
+    store._conn.execute(
+        "UPDATE sessions SET step = 'READY', flow_version = 1 WHERE user_id = 'u1'"
+    )
+    store._conn.commit()
+
+    second = Dialog(source, store)
+    session = second._session("u1")
+
+    assert session.step is Step.SWIPE, "resumed into a step from the old flow"
+    assert session.profile.age == 16, "profile was thrown away with the position"
+    assert session.taste.weights == pytest.approx(taste_before), "taste was lost"
+
+    reply = second.handle("u1", "не моё")
+    assert "₽" in reply.text

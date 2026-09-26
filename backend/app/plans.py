@@ -43,9 +43,17 @@ def build_plans(
     horizon = date.fromisoformat(BALANCE_EXPIRES)
     shortlist: list[Scored] = []
     seen: set[int] = set()
-    seen_productions: set[tuple[str, str]] = set()
+    # Deduplicate by title alone, not by (title, venue).
+    #
+    # A plan is a sequence of things one person does, so the same show must never
+    # appear in it twice — and it did: a two-event plan offered the same workshop on
+    # 14 and 21 November, at two venues. Keying on (title, venue) let a touring show,
+    # a second stage, or a repeated masterclass through as if it were a different
+    # event. Titles here are distinctive enough that collapsing on title loses
+    # nothing worth keeping.
+    seen_productions: set[str] = set()
     for item in ranked:
-        production = (item.event.name.strip().casefold(), item.event.place.name.strip().casefold())
+        production = item.event.name.strip().casefold()
         if item.event.id in seen or production in seen_productions or not affordable(item.event, user):
             continue
         if item.seance.end <= item.seance.start or item.seance.end.date() > horizon:

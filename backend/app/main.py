@@ -122,7 +122,7 @@ async def webhook(request: Request) -> dict:
 
     client = state.get("max")
     if client and reply:
-        client.send_message(message.chat_id, reply.text, reply.buttons)
+        client.send_message(message.chat_id, reply.text, reply.buttons, reply.image_url)
     elif reply:
         log.info("would reply to %s: %s", message.chat_id, reply.text[:80])
 

@@ -69,6 +69,62 @@ Two additions that are **not** in the real API:
   will not give us this, so nothing in the product may read it; it is for measurement
   only.
 
+## Synthetic users
+
+`generate_users.py` simulates people swiping, and measures whether the recommender
+actually learns anything. Each simulated person has a hidden true taste; they swipe
+according to it with realistic noise and realistic answering times, and we check how
+close what we learned is to what they actually like.
+
+It exists because a ranker that ignores taste still returns three plausible events —
+"looks fine" proves nothing.
+
+```bash
+python3 data/generate_users.py              # measure
+python3 data/generate_users.py --write-db   # also write data/demo.db
+```
+
+Current result over five personas, 25 swipes each:
+
+```
+persona                     liked  learned    fit  (date)  variety  (date)
+makes things                15/25     0.49    70%     25%      1.2     0.9
+classic theatre             17/25     0.35    55%     81%      1.4     0.9
+contemporary                17/25     0.49    65%     40%      1.4     0.9
+music                       13/25     0.30    53%     55%      1.4     1.0
+curious about everything    14/25     0.12    60%     53%      1.3     0.9
+
+mean alignment with hidden taste: +0.35
+mean taste fit vs chronological: +10%
+mean variety (tags per event): 1.3 vs 0.9 by date
+```
+
+Three things this found, which is the point of having it:
+
+1. **The long-tail bonus was punishing mainstream taste.** It applied
+   unconditionally, so a simulated user who genuinely loves classic theatre scored
+   *worse* than plain date order — rarity pushed them away from exactly what they
+   wanted. It is now gated on how well we already understand an item: explore where
+   uncertain, not where confident.
+2. **Forced variety was charged forever.** MMR's penalty is now annealed down as the
+   taste vector converges, so someone with a strong consistent preference stops
+   being handed a third of a feed they did not ask for.
+3. **Taste fit alone is a misleading metric** — it always prefers zero variety, so
+   reporting it by itself hides the trade the ranker is deliberately making. Both
+   numbers are reported now.
+
+**`classic theatre` still loses to date order, and that is expected.** That persona's
+taste *is* the catalogue's centre of mass — for them, chronological order is already
+a decent recommender. Our value is for everyone else, which is most people, because
+the centre of mass is school-group theatre. Tuning until that number goes green would
+mean deleting the diversity that is the product's whole premise.
+
+Also visible: the learned latency baselines track each persona's true pace in the
+right order and at roughly 1.5× its magnitude — as they should, since the simulator's
+`pace_ms` is the pace on an *easy* decision while the baseline is the median over
+easy and hard ones. What matters for the relative encoding is the ordering, and that
+holds.
+
 ## Files
 
 | File | What |
@@ -77,6 +133,9 @@ Two additions that are **not** in the real API:
 | `kazan_events.json` | the catalogue (regenerate, don't hand-edit) |
 | `kazan_events_labels.json` | ground-truth labels, for evaluation only |
 | `check_funnel.py` | runs the hard-filter funnel over the catalogue and reports what survives |
+| `generate_users.py` | simulates people swiping; measures whether the ranker learns |
+| `venue_photos.json` | real photographs of real Kazan venues (the events are still synthetic) |
+| `demo.db` | a populated database for demos — gitignored, regenerate with `--write-db` |
 
 ```bash
 python3 data/generate_fixtures.py && python3 data/check_funnel.py

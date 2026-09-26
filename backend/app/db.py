@@ -95,6 +95,10 @@ CREATE TABLE IF NOT EXISTS interactions (
     surface     TEXT,               -- quiz|feed|reminder
     position    INTEGER,            -- rank in the list it was shown in
     mood        TEXT,               -- the session's mood when it happened
+    -- How long the person took to answer, in milliseconds: our stand-in for dwell
+    -- time. A chat bot sees no scrolling, but in a one-card-at-a-time feed the gap
+    -- between our card and their tap IS the time spent on that card.
+    latency_ms  INTEGER,
     created_at  TEXT    NOT NULL
 );
 CREATE INDEX IF NOT EXISTS ix_interactions_user ON interactions (user_id, created_at);
@@ -108,6 +112,10 @@ CREATE TABLE IF NOT EXISTS sessions (
     mood        TEXT,
     quiz_ids    TEXT,               -- JSON array of event ids
     quiz_at     INTEGER NOT NULL DEFAULT 0,
+    -- Which shape of the conversation wrote this row. When the flow changes, a
+    -- stored position stops meaning anything and the user must not be resumed
+    -- into a path that no longer exists.
+    flow_version INTEGER NOT NULL DEFAULT 0,
     updated_at  TEXT    NOT NULL
 );
 
@@ -171,6 +179,15 @@ class Store:
     def _migrate(self) -> None:
         with self._tx() as c:
             c.executescript(SCHEMA)
+            # Databases created before flow versioning existed.
+            cols = {r["name"] for r in c.execute("PRAGMA table_info(sessions)")}
+            icols = {r["name"] for r in c.execute("PRAGMA table_info(interactions)")}
+            if "latency_ms" not in icols:
+                c.execute("ALTER TABLE interactions ADD COLUMN latency_ms INTEGER")
+            if "flow_version" not in cols:
+                c.execute(
+                    "ALTER TABLE sessions ADD COLUMN flow_version INTEGER NOT NULL DEFAULT 0"
+                )
             c.execute(
                 "INSERT OR REPLACE INTO schema_meta (key, value) VALUES (?, ?)",
                 ("schema_version", str(SCHEMA_VERSION)),
@@ -283,15 +300,18 @@ class Store:
         surface: str | None = None,
         position: int | None = None,
         mood: str | None = None,
+        latency_ms: int | None = None,
     ) -> None:
         with self._tx() as c:
             c.execute(
                 """
                 INSERT INTO interactions
-                    (user_id, event_id, signal, surface, position, mood, created_at)
-                VALUES (?,?,?,?,?,?,?)
+                    (user_id, event_id, signal, surface, position, mood,
+                     latency_ms, created_at)
+                VALUES (?,?,?,?,?,?,?,?)
                 """,
-                (user_id, event_id, signal, surface, position, mood, _now()),
+                (user_id, event_id, signal, surface, position, mood,
+                 latency_ms, _now()),
             )
 
     def log_many(self, rows: list[tuple]) -> None:
@@ -306,6 +326,37 @@ class Store:
                 """,
                 [(*r, now) for r in rows],
             )
+
+    def recent_latencies(self, user_id: str, limit: int = 40) -> list[int]:
+        """This person's own recent answering times, for a relative baseline."""
+        rows = self._conn.execute(
+            """
+            SELECT latency_ms FROM interactions
+            WHERE user_id = ? AND latency_ms IS NOT NULL
+            ORDER BY id DESC LIMIT ?
+            """,
+            (user_id, limit),
+        ).fetchall()
+        return [r["latency_ms"] for r in rows]
+
+    def usage_moments(self, user_id: str, limit: int = 200) -> list:
+        """When this person has used the bot — evidence about when they are free."""
+        from datetime import datetime as _dt
+
+        rows = self._conn.execute(
+            """
+            SELECT created_at FROM interactions
+            WHERE user_id = ? ORDER BY id DESC LIMIT ?
+            """,
+            (user_id, limit),
+        ).fetchall()
+        out = []
+        for r in rows:
+            try:
+                out.append(_dt.fromisoformat(r["created_at"]))
+            except ValueError:
+                continue
+        return out
 
     def interaction_count(self, user_id: str | None = None) -> int:
         if user_id:
@@ -326,19 +377,23 @@ class Store:
         mood: str | None,
         quiz_ids: list[int],
         quiz_at: int,
+        flow_version: int = 0,
     ) -> None:
         with self._tx() as c:
             c.execute(
                 """
                 INSERT INTO sessions
-                    (user_id, step, list_offset, mood, quiz_ids, quiz_at, updated_at)
-                VALUES (?,?,?,?,?,?,?)
+                    (user_id, step, list_offset, mood, quiz_ids, quiz_at,
+                     flow_version, updated_at)
+                VALUES (?,?,?,?,?,?,?,?)
                 ON CONFLICT(user_id) DO UPDATE SET
                     step=excluded.step, list_offset=excluded.list_offset,
                     mood=excluded.mood, quiz_ids=excluded.quiz_ids,
-                    quiz_at=excluded.quiz_at, updated_at=excluded.updated_at
+                    quiz_at=excluded.quiz_at, flow_version=excluded.flow_version,
+                    updated_at=excluded.updated_at
                 """,
-                (user_id, step, list_offset, mood, json.dumps(quiz_ids), quiz_at, _now()),
+                (user_id, step, list_offset, mood, json.dumps(quiz_ids), quiz_at,
+                 flow_version, _now()),
             )
 
     def load_session(self, user_id: str) -> dict | None:
@@ -353,6 +408,7 @@ class Store:
             "mood": row["mood"],
             "quiz_ids": json.loads(row["quiz_ids"] or "[]"),
             "quiz_at": row["quiz_at"],
+            "flow_version": row["flow_version"] if "flow_version" in row.keys() else 0,
         }
 
     def forget(self, user_id: str) -> None:

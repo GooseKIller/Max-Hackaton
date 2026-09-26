@@ -106,3 +106,47 @@ def test_current_year_planning_horizon():
     future = datetime(2027, 1, 2, 10)
     second.seance = Seance(future, future + timedelta(hours=1))
     assert build_plans([item(1), second], profile()) == []
+
+
+def test_a_plan_never_contains_the_same_show_twice():
+    """
+    Regression: a two-event plan once offered the same workshop on 14 and 21
+    November, at two different venues. Deduplication was keyed on (title, venue),
+    so a repeated masterclass or a second stage slipped through as a distinct
+    event. A plan is a sequence one person follows — the same show twice is wrong
+    however many venues it plays.
+    """
+    from datetime import datetime, timedelta
+
+    from app.labeling import label_event
+    from app.models import Event, Place, Seance
+    from app.plans import build_plans
+    from app.taste import Scored, event_vector
+
+    def show(event_id: int, title: str, venue: str, day: int, price: int) -> Scored:
+        start = datetime(2026, 11, day, 17, 30)
+        place = Place(venue, "prochee", 55.79, 49.11, "")
+        event = Event(
+            id=event_id, name=title, age_restriction=16, short_description="",
+            category="obuchenie", tags=("master-klass",), tag_names=("Мастер-класс",),
+            price=price, max_price=price, sale_link="", place=place,
+            seances=(Seance(start, start + timedelta(hours=2)),),
+        )
+        seance = event.seances[0]
+        return Scored(
+            event=event, seance=seance, score=1.0, parts={"taste": 1.0},
+            vector=event_vector(event, label_event(event)),
+        )
+
+    same_show_twice = [
+        show(1, "Мастер-класс «Волшебство в движении»", "Присутственные места", 14, 1350),
+        show(2, "Мастер-класс «Волшебство в движении»", "Музей Спасской башни", 21, 1250),
+        show(3, "Экскурсия по закулисью театра", "Театр им. Качалова", 18, 1050),
+        show(4, "Квартирник «Школьная пора»", "Музей Сайдашева", 25, 900),
+    ]
+
+    plans = build_plans(same_show_twice, profile(total=3200, cinema=0))
+    assert plans, "no plans were produced at all"
+    for plan in plans:
+        titles = [item.event.name for item in plan.items]
+        assert len(titles) == len(set(titles)), f"the same show appears twice: {titles}"

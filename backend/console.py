@@ -73,6 +73,8 @@ def main() -> None:
 def render(reply) -> None:
     print()
     print(reply.text)
+    if getattr(reply, "image_url", None):
+        print(f"{DIM}[фото] {reply.image_url[:78]}{OFF}")
     if reply.buttons:
         print(f"{DIM}[ " + " ]  [ ".join(reply.buttons) + f" ]{OFF}")
     print()

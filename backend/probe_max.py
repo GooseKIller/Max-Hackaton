@@ -30,7 +30,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parent))
 
 import httpx  # noqa: E402
 
-from app.config import settings  # noqa: E402
+from app.config import settings, ssl_context  # noqa: E402
 from app.max_client import parse_update  # noqa: E402
 
 OK = "  OK  "
@@ -49,6 +49,7 @@ def call(method: str, path: str, **kw) -> tuple[int, object]:
         url,
         headers={"Authorization": settings.max_bot_token},
         timeout=kw.pop("timeout", 30.0),
+        verify=ssl_context(),
         **kw,
     )
     try:

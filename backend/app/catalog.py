@@ -172,11 +172,14 @@ class ProCultureSource:
         params = {k: v for k, v in params.items() if v is not None}
         params["apiKey"] = self._api_key
         try:
+            from .config import ssl_context
+
             r = httpx.get(
                 f"{self.API_BASE}/{path}",
                 params=params,
                 timeout=self._timeout,
                 headers={"User-Agent": "pushkin-card-assistant/0.1"},
+                verify=ssl_context(),
             )
         except Exception as exc:  # network-level
             raise ProCultureError(f"request to /{path} failed: {exc}") from exc

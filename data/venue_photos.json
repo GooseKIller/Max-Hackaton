@@ -1,0 +1,162 @@
+{
+ "_source": "https://www.culture.ru/afisha/respublika-tatarstan-kazan/pushkinskaya-karta",
+ "_collected": "2026-09-26",
+ "_note": "Real photographs of real Kazan venues, taken from the public Культура.РФ listing. The EVENTS in data/kazan_events.json are synthetic; only these images are real. Used so a demo reads as a real city to a Kazan jury. Matched to an event by a keyword in its venue name.",
+ "_prefix": "https://cdn.culture.ru/images/",
+ "by_venue_keyword": {
+  "энергетический": [
+   "0eaeb9f3-8d28-5861-b4ea-7fb0cc18eff2/w_359,h_257,c_fill,g_center/cd5966f8111e7c149591151d681c2637-png",
+   "01eecabb-4781-553f-90ff-10108161306f/w_359,h_257,c_fill,g_center/508ed99146c23152353242d014948a4a-jpg"
+  ],
+  "Камала": [
+   "8fac216f-3b28-5263-9012-3a3057362ff7/w_359,h_257,c_fill,g_center/467ec7ee656ec78e87eed4ce558a6389-jpg",
+   "ed1074c2-3227-5cca-8029-35d908d649a3/w_359,h_257,c_fill,g_center/1fab5b7914db8c0f2ac13121ec61d924-jpg",
+   "c1a77520-db15-5bbf-b4c2-18f675ab7fa1/w_359,h_257,c_fill,g_center/8d18cdfddeef3769e3ae6f8fc048cf36-jpg",
+   "bcdaa075-ab81-569f-a5e3-42281e13a8bd/w_359,h_257,c_fill,g_center/cbb76d11245e3e7ae892e7f1c1b68a6b-jpg",
+   "736d7c34-2a5b-5af4-b6ae-f546c202a462/w_359,h_257,c_fill,g_center/c467a352ad86127519e11f66d3e910fd-jpg",
+   "53734e3f-5726-5566-8516-dac4807babc1/w_359,h_257,c_fill,g_center/10468671f47979adafb71efd0d89df24-jpg"
+  ],
+  "Качалов": [
+   "8732d781-bf3b-569f-85a7-d9bf08742efa/w_359,h_257,c_fill,g_center/194dfebd7179cfa868b49bef71a351a1-jpg",
+   "893c7045-c597-5e37-91fe-6edea8350990/w_359,h_257,c_fill,g_center/1c101179bc89c1d2d5f81ea7074ee0da-jpg",
+   "2be01615-eba7-5489-b0d4-679778f5ec6a/w_359,h_257,c_fill,g_center/c83cc6c696e8a867c2dc302e7c5a9062-jpeg",
+   "b31dc42f-cde4-57a5-9582-8a97bc79a6f1/w_359,h_257,c_fill,g_center/7326a97981e4f5887df1bcc0d61d0e87-jpeg",
+   "0678b9dc-be5e-546b-b7a0-267fee98b2d6/w_359,h_257,c_fill,g_center/9e1735c9100676365faa6baf8161cf2e-jpeg",
+   "1e92e699-a89f-510f-abd8-6029ce5f8d99/w_359,h_257,c_fill,g_center/bcbb80686fab16e5a2461f10a95347bb-jpeg"
+  ],
+  "Островского": [
+   "b6a47fab-1d3c-54f7-92a8-53dec6d07c27/w_359,h_257,c_fill,g_center/46d2a5b9bb048d47ba79e7532c00745b-jpeg",
+   "68032abe-0f34-5aa2-8611-cc9e8197c847/w_359,h_257,c_fill,g_center/062338d4f3287b566b7317bd7a369e10-jpg",
+   "9a9d0470-70f0-5d0c-8a3e-b262a358578a/w_359,h_257,c_fill,g_center/a0418443fbad6256780a1ab1dde7bb5b-jpg",
+   "31dabf86-6774-5a4b-bb9d-9af0bada4944/w_359,h_257,c_fill,g_center/cf4a1e1b0caed64d1b9aacd5f1faa32e-jpeg",
+   "d6c2407c-4f45-5921-8c54-66280eb9a2d2/w_359,h_257,c_fill,g_center/d7f61d924a494c3296efc0bb9953617b-jpg",
+   "af8bb5b5-7a1b-5122-90e1-9c4f15feb57c/w_359,h_257,c_fill,g_center/7c166058200c1ca7e9bd7ed45cff30fc-jpg"
+  ],
+  "Тукая": [
+   "f0452301-01f0-5e56-b907-65984125b092/w_359,h_257,c_fill,g_center/07b6bb656e9607cf6d2d07c604590d99-jpg",
+   "8d7f820b-74e6-568f-a422-cd4919a1da1a/w_359,h_257,c_fill,g_center/f3ec9c8dd0aea84e37e3c248a922ba95-jpg",
+   "2ed0f261-727f-5b6a-8d8f-2e23ba54159f/w_359,h_257,c_fill,g_center/02d6492aca5291da84644fa1d5c94890-jpg",
+   "97537dd0-a2d0-5385-a008-4d168ecdfd14/w_359,h_257,c_fill,g_center/268db0898bcad496f8bd1d6ac6139903-jpg",
+   "27c306df-0bfb-5f34-9055-b26b0c416cc3/w_359,h_257,c_fill,g_center/eacb9792e0b16a317d2110553eda3789-jpg",
+   "e7bea91c-bc9d-5c9b-aee4-c2b263161b27/w_359,h_257,c_fill,g_center/09385d0f3545c6f7f27e37032205dbcb-jpg"
+  ],
+  "Сайдашева": [
+   "8a3666c7-ea61-5067-b790-dbc6d2683ea1/w_359,h_257,c_fill,g_center/b7c87e1a736e7e4a2d676dd96df89ebd-jpg",
+   "c4bed9d6-6543-5e1a-8d26-dd29dc9139bb/w_359,h_257,c_fill,g_center/e6ec2ac0f302172c9e1b03db9f45ec15-jpg",
+   "40d39669-096a-56bc-8579-c45d6a31cd35/w_359,h_257,c_fill,g_center/b774b8ebb22f99bc77c4b148c370ceed-jpg",
+   "8f1984bd-1e5b-5824-adbe-a0326447501b/w_359,h_257,c_fill,g_center/5901820d03f9b1df6ae9d06ac207f14f-jpg",
+   "df8a5304-3923-5ee9-86bf-47c9ef85d423/w_359,h_257,c_fill,g_center/57bbd4eac068ee9fee7a7b84ad8b3f20-jpg",
+   "6b083e28-2797-5ac7-9619-eed478b57cb0/w_359,h_257,c_fill,g_center/481ff560c2f83328aebeb9ddeaa65db9-jpg"
+  ],
+  "Экият": [
+   "612226b7-0ebc-5dd2-b23f-e8770d32d8c3/w_359,h_257,c_fill,g_center/293e47d69d6c116cd27190ad77f19cbc-jpg",
+   "f2bf1af8-e3b9-5459-b908-9fbb15fe590d/w_359,h_257,c_fill,g_center/ea2b397a0b84ff65284a5b48f8767773-jpeg",
+   "02b16f04-a710-5279-9853-9076dab78675/w_359,h_257,c_fill,g_center/c6e280b331af672a440fe7ef73c17970-jpeg",
+   "b1caa441-6d54-570b-a668-25775b77c6e1/w_359,h_257,c_fill,g_center/e43ee2c8cc92a479a32b529807bbb68b-jpeg",
+   "0b9ba4ae-7299-5f9d-9dfc-f6338ca65c0e/w_359,h_257,c_fill,g_center/89a7f1f8bf2e7cef93032711076e3f2a-jpeg",
+   "e25d60ae-78ea-5a08-a92f-e863dd35e7d2/w_359,h_257,c_fill,g_center/58c455ba3a17dc231397e720295b6ce3-jpg"
+  ],
+  "Кариева": [
+   "cddbf006-e807-5ea1-8a86-ef8ae443c315/w_359,h_257,c_fill,g_center/40f0a50728a64dd4832c1ee4e7920077-jpg",
+   "ff7b9eb8-fa09-59fc-abba-3cad3be546f9/w_359,h_257,c_fill,g_center/d58d7f33d6d35f004354b015b835ae51-jpg",
+   "22162d7c-dd59-55cf-b4eb-4e48313ceb04/w_359,h_257,c_fill,g_center/061d41754d118c4496eb94104c80a65c-png",
+   "5fab24ce-6a03-55b6-85e6-fd9159c16d8b/w_359,h_257,c_fill,g_center/8739d85bc700d7f818d1c31c95c8ab1f-jpeg",
+   "c89e761e-3262-59e8-b888-ecebf85f64cc/w_359,h_257,c_fill,g_center/05ccf7b1026363f22798c5c981703350-jpeg",
+   "e6e2f470-ebcf-5e0c-8089-02bf0e4705cd/w_359,h_257,c_fill,g_center/6db4fdf7f1e9bca4cc73dc2037736ae3-jpg"
+  ],
+  "юношеская": [
+   "64420a1e-b17b-5339-9ad9-1951315f269b/w_359,h_257,c_fill,g_center/eccfb0b2c5d101316cc0a3107c435402-jpg"
+  ],
+  "дружбы": [
+   "65e5719f-4b09-5549-941b-d699c36e2040/w_359,h_257,c_fill,g_center/d2cbf197f142bf7dbad4bf7c992b1c92-jpg",
+   "3addfa0c-8795-547e-ba81-db0f6678ad2e/w_359,h_257,c_fill,g_center/c33cd8d32ef897a562e96ddf740aa169-png"
+  ],
+  "современного искусства": [
+   "87017d6f-d4dc-5f74-be85-4269c472769f/w_359,h_257,c_fill,g_center/59d80a992ae62cdc8a1f72f4da5ddc70-jpg",
+   "22c54d99-c1ef-5c6f-a073-90875477ed0f/w_359,h_257,c_fill,g_center/d5a77edb3db1038b741b59fa8965c348-png"
+  ],
+  "Тинчурин": [
+   "01384198-8622-56f6-8909-d95d62a7c97d/w_359,h_257,c_fill,g_center/711d7d2f2f84a2f22691a2cedf010f06-jpg",
+   "badb2014-86dd-5e5c-bacb-50ef44455310/w_359,h_257,c_fill,g_center/14e76b054e8aaefc07c85979b112ace2-jpeg",
+   "a1ac5608-25ad-5d0a-9df6-bec59bd6ef26/w_359,h_257,c_fill,g_center/3556f9983e266de3a04a4f63a37023a1-jpeg",
+   "84a72390-6476-563b-add3-16e3fea90628/w_359,h_257,c_fill,g_center/1749a2857cf58dfe163864beafecebe8-jpg",
+   "0211d1e1-06ed-55d9-a9bf-da8d8f9d5d04/w_359,h_257,c_fill,g_center/cc7e3da051f2e0d4fa204db49f784ba0-jpeg",
+   "4b28551c-be7c-52f0-90d9-2498ccfa0abd/w_359,h_257,c_fill,g_center/4d8004658e670644feb9995fc0138c6e-jpg"
+  ],
+  "Пушкина": [
+   "057ee380-65ff-595e-9694-d9f803da8ff4/w_359,h_257,c_fill,g_center/d569d5906c049f2c80d115344aa43763-jpg",
+   "55b162de-2e47-59fb-a0ad-7de0ec22cc7e/w_359,h_257,c_fill,g_center/4a192201bf4e4157f87f60b310365a2a-jpg",
+   "6d93bc26-cbef-5a0e-a844-56a6166dce33/w_359,h_257,c_fill,g_center/2bba9536ab34a9ec506abb34d456e8ae-jpg"
+  ],
+  "Шарык": [
+   "e4af2d5f-3db7-5d8d-90ea-ec7fcee97f7c/w_359,h_257,c_fill,g_center/0eb1859c7aa3e3cf0bdf6f7c13c75852-jpg"
+  ],
+  "Учебный театр": [
+   "39a9be6d-2b45-56ab-a50d-5708070cfb8d/w_359,h_257,c_fill,g_center/39b954fd4378347bdc9f4c2203d700e9-jpg"
+  ],
+  "Хазинэ": [
+   "21dbaeca-baf6-5f09-b133-4f0347054ba4/w_359,h_257,c_fill,g_center/7b7587f087022e4258c58b12140dca5f-jpg",
+   "4e075a8f-6411-5b4f-9e4f-2d77facd8ece/w_359,h_257,c_fill,g_center/a620dd0a6b7797c1c4b4f82944f7fe1c-jpg",
+   "56269f32-f956-56bb-9449-11beb732dfde/w_359,h_257,c_fill,g_center/6dbb69d24be65e3b9105baac727782c6-jpg",
+   "6d5b5f39-eeba-5b3e-981f-f8d59b043d66/w_359,h_257,c_fill,g_center/29907d47d1d6d51457f3080ce08099cd-jpg",
+   "e713ae3d-b765-5bec-bee4-bc8b2d20cb6e/w_359,h_257,c_fill,g_center/27a4b3aae87d9798db5474787a049145-jpg"
+  ],
+  "Спасской": [
+   "8612f710-5a9e-5d3f-bdc4-e6ebb4c7b693/w_359,h_257,c_fill,g_center/3a17210cee8b01d5d3c791fa63d8aafc-jpg",
+   "18b8fbd7-ab62-536f-883d-cb018b4e5ea4/w_359,h_257,c_fill,g_center/213bd0f699ccae2cfee6da04d6f92084-jpg",
+   "d71c0da7-fa9c-5001-81bb-898e9cc2615f/w_359,h_257,c_fill,g_center/22515a96700e36680d49f66c5b23d191-jpg",
+   "7d69f405-3d4f-5b81-bd98-9985aa92f435/w_359,h_257,c_fill,g_center/35f25c1b742227fcd6ce0cf7971fd211-jpg",
+   "e85ea679-f1ef-5553-baef-f159bf709a1b/w_359,h_257,c_fill,g_center/04dc755d7ef3af34a1bc6033546d18b0-jpg"
+  ],
+  "Присутственные": [
+   "e2d5cd55-e57d-5c69-81e9-175aa9b068e9/w_359,h_257,c_fill,g_center/36e76c205ec549e7b1e402189262acf9-jpg",
+   "a0856219-3090-502b-a3fe-b7a3d97bd4b3/w_359,h_257,c_fill,g_center/74fc79b4da9b8d3f7ad53a1e9ac52e64-jpg",
+   "4bdf77a4-c6ba-58e8-bd3a-0a1114614e30/w_359,h_257,c_fill,g_center/f857862c84a9b92f8ab8debc42957304-jpg",
+   "b9adc481-0576-5e7e-b3a1-2887b9352582/w_359,h_257,c_fill,g_center/7594b2df321f46ddb0cf0cbd10540bca-jpg",
+   "72f8cbf3-8d03-54e7-bad2-ded2d7fcc283/w_359,h_257,c_fill,g_center/99ca873cbb7cf69ec57701258a74612c-jpg"
+  ],
+  "Емельянова": [
+   "36a8d857-c83d-5532-a46e-327f1578c520/w_359,h_257,c_fill,g_center/83668bc83c750bc9e8995e7b1ad7c1bb-jpg",
+   "dfc596d0-229f-547d-8092-5ad01ff3f919/w_359,h_257,c_fill,g_center/da94b40280ca76b8e2a34f85c1448f41-jpg",
+   "aa9a101a-fef1-50c3-a73b-8900312fd3ef/w_359,h_257,c_fill,g_center/8910fe26f0da8b115f88c10ba19097c4-jpg",
+   "dd7ee5cb-c665-5c54-b1b2-28f304412f87/w_359,h_257,c_fill,g_center/fa296a4782e8e7a74c2a47156ded6c90-jpg"
+  ],
+  "естественной истории": [
+   "244e9c0f-1389-563b-84f5-fb16167b16bf/w_359,h_257,c_fill,g_center/6be68f70fe16ef8b97bd7cd65041bb4b-jpg",
+   "a06254b0-a0bf-544c-a310-a7a4844755cd/w_359,h_257,c_fill,g_center/1fc9a6c1a3ee3e63886bac5fedaa6760-jpg",
+   "2e0aca8e-e444-5df7-bf75-3ee08194ae69/w_359,h_257,c_fill,g_center/37ade3b315c9426cb95716ff0bea7a5a-jpg",
+   "525f191c-5483-50b6-9c03-858062c2a7d6/w_359,h_257,c_fill,g_center/de8e19c753ad2ea63168cb636d412e49-jpg",
+   "9c93a1b1-d2a4-592e-8109-b78f9562d148/w_359,h_257,c_fill,g_center/b2e5386722e522ac5529958db18b2ce8-jpg"
+  ],
+  "Национальный музей": [
+   "c674b886-1532-5f48-a592-7eb19673350b/w_359,h_257,c_fill,g_center/0ea137172462864731ea50789fbe7df0-jpeg",
+   "1faa74b8-90d0-5ba1-9726-8c7eaa4ab23b/w_359,h_257,c_fill,g_center/20d81a360db6f9f9405a04613e6d08ab-jpg",
+   "a8779bac-d3b5-5b36-9e71-f93daca42949/w_359,h_257,c_fill,g_center/f1a124867b9d7431ddade8c7a79ead53-jpeg",
+   "560e12e8-b8cb-54b5-a601-fec471c95c0d/w_359,h_257,c_fill,g_center/8bdb9a3c8b13e190ff6b795df103a72f-jpg",
+   "4363ee3a-2de5-5848-a927-fff3565c2387/w_359,h_257,c_fill,g_center/10e61ab8a3e2e6bec24572f27a19d577-jpg"
+  ],
+  "государственности": [
+   "03bcecdb-6fd5-5460-8b7a-a59b44be87e1/w_359,h_257,c_fill,g_center/07b15ffaeb44fb411255d1f51d6fb1e7-jpg",
+   "c0549f91-1d23-5620-bb78-dd520b564d75/w_359,h_257,c_fill,g_center/ed699738f6a05f7889a1bf23705f6a03-jpeg",
+   "ab0e48c9-ce25-5eec-a55b-d614f19e7927/w_359,h_257,c_fill,g_center/d945b6455cd0e5481be4fa8ea149ace0-jpg",
+   "8f8a9561-e1f5-59ee-9db4-303e665c77cd/w_359,h_257,c_fill,g_center/efd8a8f961f115f638715cda8302bd36-jpg",
+   "70e86f57-2d80-50d6-8fa5-1d62bd6eb3e5/w_359,h_257,c_fill,g_center/b53aa863df2f66d10c1dd62cfd92efcd-jpg"
+  ],
+  "изобразительных": [
+   "10a7002e-2d92-5626-bb72-ad2de8eac9d7/w_359,h_257,c_fill,g_center/e6dde033239a4610193eef69a487cb5e-jpg",
+   "5addaa5a-609a-5713-87f0-d31891778783/w_359,h_257,c_fill,g_center/ded496a47f7ca61bb6bbe4944c759dc7-jpg",
+   "1dbb8d9f-796e-530c-a8e0-46301b725d71/w_359,h_257,c_fill,g_center/76aa3f2a0c5f7d546f6d81fcec7f7733-jpg",
+   "7d924362-16b1-534f-89c5-48595555ebcd/w_359,h_257,c_fill,g_center/576e15ba147c2eb42735af91aaee86fb-jpg"
+  ],
+  "Булаке": [
+   "1e1cf270-985e-5e9d-8205-b972dbbe80b2/w_359,h_257,c_fill,g_center/109267fabc0c3f81ab05bd11ba55fbc6-jpeg",
+   "4d8aec59-6a0d-59a7-8756-e567623beac8/w_359,h_257,c_fill,g_center/5e61a220c8329f7323c51a65d2fbbe7d-jpg",
+   "cd4c7492-7a36-5734-b533-69242b3c0251/w_359,h_257,c_fill,g_center/a065afad36b7a5bf358156fdc5d6330f-jpg",
+   "0d686789-9934-518a-a5b8-15accd68ebf8/w_359,h_257,c_fill,g_center/40c4886cdfe06a9b7b60435469405bca-jpg",
+   "6a494ec7-2f23-5ba1-b1a8-5bd6218b9654/w_359,h_257,c_fill,g_center/6f11b22a5671012e7eb90ed286a949be-jpeg"
+  ],
+  "библиотек": [
+   "f0d53a9a-4c4f-564c-a5a6-4e97746428fb/w_359,h_257,c_fill,g_center/42907c62cf67448eb19776e1dab4a746-jpg"
+  ]
+ }
+}

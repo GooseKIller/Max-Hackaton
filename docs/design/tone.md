@@ -102,8 +102,23 @@ We do not claim to be one of them. We claim to be useful. A tool that does its j
 is respected at any age. A brand pretending to be a friend is the exact thing the
 research says gets unfollowed.
 
-Concretely: no first-person chumminess, no emoji-as-personality, no exclamation marks
-doing emotional labour.
+Concretely: no first-person chumminess, no exclamation marks doing emotional labour,
+and no emoji performing a feeling at the reader.
+
+**Emoji as icons are a different thing, and we use them.** A marker at the head of a
+line that says "this is the price", "this is the place", "this is a concert" is an
+icon, and in a messenger it is the difference between a card you scan in a second and
+a paragraph you skip. The rule is:
+
+- **one per line, at the front**, never inside a sentence;
+- it labels a *field* or a *kind* — 🎭 a play, 💳 the price, 📍 the venue, ❤️/👎 the
+  two choices — never a mood we are trying to project;
+- prose stays clean. Nothing decorative in an explanation, a warning, or the balance
+  reminder.
+
+The line to hold is the same one as with slang: an icon that helps someone read faster
+is a tool, and a string of emoji trying to sound young is the thing the research says
+gets a brand unfollowed.
 
 ### Rule 3 — expose the mechanism instead of hiding it
 

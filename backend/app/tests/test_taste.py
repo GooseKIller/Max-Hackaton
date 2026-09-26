@@ -9,6 +9,8 @@ same show, still returns three plausible-looking events.
 from __future__ import annotations
 
 import sys
+
+import pytest
 from datetime import date, datetime, timedelta
 from pathlib import Path
 
@@ -158,16 +160,79 @@ def _ranker(events: list[Event]) -> Ranker:
 
 
 def test_taste_changes_the_order():
+    """
+    Once we know someone, their taste drives the order.
+
+    Enough signals to have annealed out of exploration — with only one or two, the
+    ranker is *supposed* to still be exploring and a rare event can outrank a
+    well-matched one. That property is pinned separately below.
+    """
     events = _catalogue()
     r = _ranker(events)
     pairs = [(e, SLOT) for e in events]
 
     likes_workshops = Taste()
-    likes_workshops.add(event_vector(events[4]), "like")
-    likes_workshops.add(event_vector(events[5]), "like")
+    for _ in range(10):
+        likes_workshops.add(event_vector(events[4]), "like")
+        likes_workshops.add(event_vector(events[5]), "like")
 
     top = r.score(pairs, teen(), likes_workshops, today=date(2026, 10, 1))[0]
     assert top.event.id in (5, 6)
+
+
+def test_a_cold_user_is_explored_not_exploited():
+    """
+    With almost no signal, discovery outweighs a thin taste vector on purpose.
+
+    Two likes is not a preference, and treating it as one locks someone into the
+    first corner of the catalogue they happened to touch.
+    """
+    events = _catalogue()
+    r = _ranker(events)
+    pairs = [(e, SLOT) for e in events]
+
+    barely_known = Taste()
+    barely_known.add(event_vector(events[4]), "like")
+    barely_known.add(event_vector(events[5]), "like")
+
+    scored = r.score(pairs, teen(), barely_known, today=date(2026, 10, 1))
+    top = scored[0]
+    assert top.parts["discovery"] > top.parts["taste"], (
+        "a nearly-cold user is being exploited instead of explored"
+    )
+
+
+def test_exploration_decays_as_signals_arrive():
+    from app.taste import exploration_rate
+
+    assert exploration_rate(0) == 1.0
+    assert exploration_rate(6) == pytest.approx(0.5)
+    assert exploration_rate(60) < 0.15
+    # Never reaches zero: a little exploration forever is what stops a taste vector
+    # collapsing into one corner of the catalogue.
+    assert exploration_rate(10_000) > 0
+
+
+def test_the_long_tail_bonus_does_not_punish_mainstream_taste():
+    """
+    Regression: the rarity bonus applied unconditionally, so a simulated user who
+    genuinely loves classic theatre scored worse than plain date order — rarity
+    pushed them away from exactly what they wanted. It is now gated on how well we
+    already understand an item.
+    """
+    events = _catalogue()
+    r = _ranker(events)
+    pairs = [(e, SLOT) for e in events]
+
+    loves_classics = Taste()
+    for _ in range(10):
+        for e in events[:3]:
+            loves_classics.add(event_vector(e), "like")
+
+    scored = r.score(pairs, teen(), loves_classics, today=date(2026, 10, 1))
+    best_match = max(scored, key=lambda s: s.parts["taste"])
+    # A well-understood item should not be carrying a large discovery bonus.
+    assert best_match.parts["discovery"] < best_match.parts["taste"]
 
 
 def test_diversify_does_not_return_three_of_the_same_kind():
@@ -235,3 +300,57 @@ def test_quiz_cards_span_the_catalogue():
     assert len({c.id for c in cards}) == 4
     tags = {t for c in cards for t in c.tags}
     assert len(tags) >= 4, "the quiz only probes one corner of the feature space"
+
+
+# --- mood is a session overlay, not part of who you are --------------------
+
+
+def test_mood_does_not_accumulate_across_sessions():
+    """
+    Regression: `add_mood` used to write straight into `weights`, which is
+    persisted. Picking the same mood four times pushed `affect:novelty` to 5.6 and
+    permanently swamped everything the user had actually swiped on.
+    """
+    t = Taste()
+    for _ in range(4):
+        t.set_mood("что-то необычное")
+
+    once = Taste()
+    once.set_mood("что-то необычное")
+
+    assert t.effective() == once.effective()
+    assert t.effective()["affect:novelty"] < 2.0
+
+
+def test_mood_is_never_persisted():
+    """`weights` is what the database stores, so the mood must stay out of it."""
+    t = Taste()
+    t.set_mood("что-то необычное")
+    assert t.weights == {}
+    assert t.mood_overlay
+
+
+def test_mood_can_be_cleared():
+    t = Taste()
+    t.set_mood("что-то необычное")
+    t.set_mood(None)
+    assert t.effective() == {}
+
+
+def test_mood_adds_to_durable_taste_without_overwriting_it():
+    t = Taste()
+    t.add({"tag:tanec": 1.0}, "like")
+    t.set_mood("что-то необычное")
+
+    effective = t.effective()
+    assert effective["tag:tanec"] == pytest.approx(1.0), "durable taste was lost"
+    assert "affect:novelty" in effective, "mood was not applied"
+    assert "affect:novelty" not in t.weights, "mood leaked into the persisted vector"
+
+
+def test_switching_mood_replaces_the_previous_one():
+    t = Taste()
+    t.set_mood("что-то необычное")
+    t.set_mood("что-нибудь смешное")
+    assert "affect:novelty" not in t.effective()
+    assert "affect:valence" in t.effective()

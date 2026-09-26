@@ -13,6 +13,79 @@ from __future__ import annotations
 
 import os
 from dataclasses import dataclass, field
+from pathlib import Path
+
+_REPO_ROOT = Path(__file__).resolve().parents[2]
+
+
+def load_dotenv(path: Path | None = None) -> None:
+    """
+    Read `.env` into the process environment, if it is there.
+
+    Every document tells the reader to put their token in `.env`, and until this
+    existed nothing actually read it: `os.getenv` sees the process environment, and
+    only Docker Compose was loading `env_file` on its own. So `console.py`,
+    `runner.py` and `check_token.py` all reported "MAX_BOT_TOKEN is not set" at a
+    user who had just set it.
+
+    Written by hand rather than adding python-dotenv: it is fifteen lines, and one
+    fewer pinned dependency is one fewer thing in the image.
+
+    A real environment variable always wins, so Docker, CI and `FOO=bar python ...`
+    keep overriding the file.
+    """
+    path = path or _REPO_ROOT / ".env"
+    try:
+        lines = path.read_text(encoding="utf-8").splitlines()
+    except (OSError, UnicodeDecodeError):
+        return
+
+    for line in lines:
+        line = line.strip()
+        if not line or line.startswith("#") or "=" not in line:
+            continue
+        key, _, value = line.partition("=")
+        key = key.strip()
+        value = value.strip().strip('"').strip("'")
+        if key and value and key not in os.environ:
+            os.environ[key] = value
+
+
+load_dotenv()
+
+
+# --- TLS -------------------------------------------------------------------
+
+RU_TRUSTED_ROOT = _REPO_ROOT / "certs" / "russian-trusted-root-ca.pem"
+
+
+def ssl_context():
+    """
+    A TLS context that also trusts the Russian Trusted Root CA.
+
+    `platform-api2.max.ru` presents a certificate chained to
+    "The Ministry of Digital Development and Communications — Russian Trusted Root
+    CA". That root ships in neither certifi nor the default macOS/Linux trust
+    stores, so a stock Python client fails with CERTIFICATE_VERIFY_FAILED before it
+    can even send the token. Browsers in Russia usually have it preinstalled, which
+    is why the API looks fine in a browser and dies in code.
+
+    This **adds** that one root to the normal public bundle; it does not replace it
+    and it does not disable verification. Every other host still verifies exactly as
+    before, and a bad certificate on max.ru is still rejected.
+
+    `verify=False` would also have made the error go away. It would also have made
+    the connection unauthenticated, which is not a trade worth making for a bot that
+    carries a token.
+    """
+    import ssl
+
+    import certifi
+
+    context = ssl.create_default_context(cafile=certifi.where())
+    if RU_TRUSTED_ROOT.exists():
+        context.load_verify_locations(cafile=str(RU_TRUSTED_ROOT))
+    return context
 
 
 @dataclass(frozen=True)

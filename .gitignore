@@ -14,3 +14,7 @@ frontend/.browsers/
 # local database
 data/app.db
 data/app.db-*
+
+# generated demo database
+data/demo.db
+data/demo.db-*

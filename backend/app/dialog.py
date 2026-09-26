@@ -25,7 +25,9 @@ from .config import BALANCE_EXPIRES, CARD_RULES_2026, ELIGIBLE_AGE_MAX, ELIGIBLE
 from .filters import candidates, km_between
 from .labeling import label_all
 from .models import Event, Seance, UserProfile
+from .photos import PhotoBook
 from .plans import build_plans
+from .timing import Timing, baseline as latency_baseline, weight as timing_weight
 from .taste import MOOD_TARGETS, Ranker, Scored, Taste, mood_match, quiz_cards
 
 WEEKDAYS_RU = ("пн", "вт", "ср", "чт", "пт", "сб", "вс")
@@ -35,6 +37,64 @@ MONTHS_RU = (
 )
 
 QUIZ_LENGTH = 5
+
+# The shape of the conversation. Bump this whenever a step is added, removed or
+# repurposed. A stored position from an older shape means nothing — resuming into
+# it drops the user into a path that no longer exists, which is how a returning
+# user ended up in the removed three-events-at-once view after the feed shipped.
+# Profile and taste survive a bump; only the position is discarded.
+FLOW_VERSION = 2
+
+# Emoji as field markers, not as personality.
+#
+# tone.md rule 2 rules out emoji doing emotional labour — a bot performing
+# enthusiasm at a 16-year-old. A marker that says "this line is the price" is a
+# different thing: it is an icon, and in a messenger it is what makes a card
+# scannable instead of a paragraph. One per line, never inside a sentence, never
+# to convey feeling.
+CATEGORY_ICON = {
+    "spektakli": "🎭",
+    "koncerty": "🎵",
+    "vystavki": "🖼",
+    "ekskursii": "🚶",
+    "obuchenie": "✍️",
+    "vstrechi": "💬",
+    "prazdniki": "🎉",
+    "kino": "🎬",
+    "prochie": "✨",
+}
+
+# The catalogue's category is not always the obvious one — a show titled
+# «Спектакль …» can be filed under `prochie`. The title is the stronger signal
+# for an icon, so it wins.
+TITLE_ICON = (
+    ("спектакл", "🎭"),
+    ("мюзикл", "🎭"),
+    ("бэби-спектакл", "🎭"),
+    ("концерт", "🎵"),
+    ("органн", "🎵"),
+    ("квартирник", "🎵"),
+    ("выставк", "🖼"),
+    ("экскурси", "🚶"),
+    ("мастер-класс", "✍️"),
+    ("воркшоп", "✍️"),
+    ("лаборатори", "✍️"),
+    ("лекци", "💬"),
+    ("интеллектуальная игра", "🧠"),
+    ("квиз", "🧠"),
+    ("показ фильма", "🎬"),
+    ("кинопоказ", "🎬"),
+    ("документальное кино", "🎬"),
+)
+
+
+def _icon(event: Event) -> str:
+    title = event.name.lower()
+    for needle, icon in TITLE_ICON:
+        if needle in title:
+            return icon
+    return CATEGORY_ICON.get(event.category, "✨")
+
 
 # Why an event was picked, in plain words. Keyed by the strongest score component.
 REASON_TEXT = {
@@ -56,6 +116,7 @@ class Step(Enum):
     ASK_TIME = auto()
     ASK_MOOD = auto()
     QUIZ = auto()
+    SWIPE = auto()
     READY = auto()
 
 
@@ -65,6 +126,8 @@ class Reply:
 
     text: str
     buttons: list[str] = field(default_factory=list)
+    # MAX fetches this server-side; delivery is best-effort and falls back to text.
+    image_url: str | None = None
 
 
 @dataclass
@@ -75,6 +138,16 @@ class Session:
     offset: int = 0
     quiz: list[Event] = field(default_factory=list)
     quiz_at: int = 0
+    swiped: int = 0
+    # Titles already shown. Event ids are not enough: the same production runs many
+    # times and exists as several records, so an id-only guard shows it again.
+    seen_titles: set[str] = field(default_factory=set)
+    # When our last message went out, so the next answer can be timed.
+    last_sent_at: datetime | None = None
+    last_timing: Timing | None = None
+    # This person's own recent answering times, so "fast" and "slow" can mean fast
+    # and slow for them rather than against a fixed number.
+    latencies: list[int] = field(default_factory=list)
     mood: str | None = None
     last_shown: list[Scored] = field(default_factory=list)
 
@@ -115,6 +188,7 @@ class Dialog:
         self._events = source.all_events()
         self._by_id = {e.id: e for e in self._events}
         self._labels = label_all(self._events)
+        self._photos = PhotoBook()
         self._ranker = Ranker(self._events, self._labels)
         self._sessions: dict[str, Session] = {}
 
@@ -135,7 +209,14 @@ class Dialog:
             if profile is not None:
                 session.profile = profile
                 session.taste = self._store.load_taste(user_id)
+            session.latencies = self._store.recent_latencies(user_id)
             saved = self._store.load_session(user_id)
+            if saved and saved.get("flow_version") != FLOW_VERSION:
+                # Keep who they are and what they like; drop where they were.
+                session.step = (
+                    Step.SWIPE if session.profile.is_onboarded else Step.NEW
+                )
+                saved = None
             if saved:
                 try:
                     session.step = Step[saved["step"]]
@@ -143,6 +224,9 @@ class Dialog:
                     session.step = Step.NEW
                 session.offset = saved["list_offset"]
                 session.mood = saved["mood"]
+                # Mood lives in the session, not in the stored taste vector, so it
+                # has to be re-applied as an overlay when a session is rehydrated.
+                session.taste.set_mood(session.mood)
                 session.quiz = [
                     self._by_id[i] for i in saved["quiz_ids"] if i in self._by_id
                 ]
@@ -167,6 +251,7 @@ class Dialog:
             mood=session.mood,
             quiz_ids=[e.id for e in session.quiz],
             quiz_at=session.quiz_at,
+            flow_version=FLOW_VERSION,
         )
 
     def reset(self, user_id: str) -> None:
@@ -178,6 +263,22 @@ class Dialog:
         now = now or datetime.now(ZoneInfo("Europe/Moscow")).replace(tzinfo=None)
         text = (text or "").strip()
         session = self._session(user_id)
+
+        # How long they took to answer our last card. This is the closest thing a
+        # chat bot has to dwell time; see timing.py for what we read into it.
+        latency = None
+        if session.last_sent_at is not None:
+            latency = int((now - session.last_sent_at).total_seconds() * 1000)
+            if latency < 0:
+                latency = None
+        if latency is not None:
+            session.latencies.append(latency)
+            del session.latencies[:-40]
+        session.last_timing = Timing(
+            latency_ms=latency,
+            position=session.swiped,
+            baseline_ms=latency_baseline(session.latencies),
+        )
 
         if text.lower() in ("/start", "начать", "заново", "/reset"):
             self.reset(user_id)
@@ -193,12 +294,14 @@ class Dialog:
             Step.ASK_CINEMA: lambda: self._take_cinema(session, text, now),
             Step.EDIT_BALANCE: lambda: self._take_balance(session, text, now, editing=True),
             Step.EDIT_CINEMA: lambda: self._take_cinema(session, text, now, editing=True),
-            Step.ASK_TIME: lambda: self._take_time(session, text),
+            Step.ASK_TIME: lambda: self._take_time(session, text, now),
             Step.ASK_MOOD: lambda: self._take_mood(session, text, now),
             Step.QUIZ: lambda: self._take_quiz(session, text, now),
+            Step.SWIPE: lambda: self._take_swipe(session, text, now),
             Step.READY: lambda: self._take_command(session, text, now),
         }
         reply = handlers[session.step]()
+        session.last_sent_at = now
         self._persist(session)
         return reply
 
@@ -236,11 +339,14 @@ class Dialog:
         r = CARD_RULES_2026
         return Reply(
             text=(
-                f"Сколько осталось на карте?\n"
-                f"Годовой лимит — {r.total} ₽, на кино — до {r.cinema_cap} ₽ внутри него.\n"
-                "Введи точную сумму или выбери «не знаю», чтобы посмотреть события без расчёта плана."
+                "Сколько осталось на карте?\n\n"
+                "Напиши число — например, 4226.\n"
+                "Точная сумма есть в «Госуслуги Культура»."
             ),
-            buttons=["5000", "3200", "1500", "не знаю"],
+            # Two buttons, not four. A row of round numbers reads as "pick one of
+            # these", and the invitation to type your own was drowning in the third
+            # line of a four-line message. Most balances are not round.
+            buttons=["не знаю"],
         )
 
     def _take_balance(self, session: Session, text: str, now: datetime, editing: bool = False) -> Reply:
@@ -264,12 +370,19 @@ class Dialog:
         if amount == 0:
             session.profile.balance_cinema = 0
             return self._after_balance(session, now, editing)
-        session.step = Step.EDIT_CINEMA if editing else Step.ASK_CINEMA
-        return Reply(
-            text=("Сколько из остатка ещё можно потратить на кино?\n"
-                  "Посмотри в «Госуслуги Культура». Если не знаешь, подберу события без кино."),
-            buttons=["0", str(min(amount, r.cinema_cap)), "без кино"],
-        )
+        if editing:
+            session.step = Step.EDIT_CINEMA
+            return Reply(
+                text=("Сколько из остатка ещё можно потратить на кино?\n"
+                      "Если не знаешь, подберу события без кино."),
+                buttons=["0", str(min(amount, r.cinema_cap)), "без кино"],
+            )
+
+        # Cinema has its own sub-limit, but asking about it before the user has
+        # seen anything costs a step and buys nothing: cinema is a small slice of
+        # what we show. Start without it and ask when a plan actually needs it.
+        session.profile.balance_cinema = None
+        return self._after_balance(session, now, editing=False)
 
     def _take_cinema(self, session: Session, text: str, now: datetime, editing: bool = False) -> Reply:
         limit = min(session.profile.balance_general or 0, CARD_RULES_2026.cinema_cap)
@@ -287,23 +400,23 @@ class Dialog:
         if editing:
             session.step = Step.READY
             return self._recommend(session, now, preamble=note or None)
-        session.step = Step.ASK_TIME
-        return Reply(
-            text=note + "Когда тебе удобно ходить?",
-            buttons=["вечером и в выходные", "только в выходные", "только вечером"],
-        )
+        # Straight into the feed. The old flow asked about time and mood and then
+        # ran a five-card quiz — eleven steps and 2332 characters before the user
+        # saw a single event, against a rule of thumb of five to seven steps to
+        # first value. Time, mood and the cinema sub-limit are refinements now:
+        # they are offered once there is something on screen to refine.
+        session.step = Step.SWIPE
+        session.swiped = 0
+        return self._swipe(session, now, preamble=note + "Смотри, что есть. Листай:")
 
-    def _take_time(self, session: Session, text: str) -> Reply:
+    def _take_time(self, session: Session, text: str, now: datetime) -> Reply:
         t = text.lower()
         only = "только" in t
         session.profile.free_weekends = not (only and "вечер" in t)
         session.profile.free_evenings = not (only and "выходн" in t)
 
-        session.step = Step.ASK_MOOD
-        return Reply(
-            text="Чего сейчас хочется?",
-            buttons=list(MOOD_TARGETS.keys()),
-        )
+        session.step = Step.SWIPE
+        return self._swipe(session, now, preamble="Обновил. Дальше:")
 
     def _take_mood(self, session: Session, text: str, now: datetime) -> Reply:
         # Mood, not momentary emotion: it is stable over a session and, per the
@@ -311,23 +424,10 @@ class Dialog:
         matched = next((m for m in MOOD_TARGETS if m.lower() == text.lower()), None)
         if matched:
             session.mood = matched
-            session.taste.add_mood(matched)
+            session.taste.set_mood(matched)
 
-        session.quiz = quiz_cards(self._events, self._ranker, n=QUIZ_LENGTH, now=now)
-        session.quiz_at = 0
-        if not session.quiz:
-            session.step = Step.READY
-            return self._recommend(session, now)
-
-        session.step = Step.QUIZ
-        return Reply(
-            text=(
-                "Теперь несколько карточек — скажи, что из этого интересно.\n"
-                f"Это {QUIZ_LENGTH} вопросов, чтобы не показывать тебе случайное.\n\n"
-                + self._quiz_card(session)
-            ),
-            buttons=["интересно", "не моё", "пропустить"],
-        )
+        session.step = Step.SWIPE
+        return self._swipe(session, now, preamble="Обновил. Дальше:")
 
     def _log(
         self, session: Session, event_id: int, signal: str,
@@ -335,10 +435,115 @@ class Dialog:
     ) -> None:
         if self._store is None:
             return
+        t = session.last_timing
         self._store.log(
             session.profile.user_id, event_id, signal,
             surface=surface, position=position, mood=session.mood,
+            latency_ms=t.latency_ms if t else None,
         )
+
+    def _swipe(
+        self, session: Session, now: datetime, preamble: str = ""
+    ) -> Reply:
+        """
+        One event, one picture, one decision.
+
+        This is the product, not a questionnaire in front of it. Every card is a
+        real thing the user could go to tonight, so a swipe is both a taste signal
+        and a real choice — the reason ДайВинчик's loop works at all.
+        """
+        found = candidates(self._events, session.profile, now)
+        if not found:
+            session.step = Step.READY
+            return Reply(
+                text="Под эти условия ничего не нашлось. Можно расширить поиск.",
+                buttons=["другое время", "другой остаток", "заново"],
+            )
+
+        ranked = self._ranker.score(found, session.profile, session.taste, today=now.date())
+        fresh = [
+            s_ for s_ in ranked
+            if s_.event.name.strip().casefold() not in session.seen_titles
+        ]
+        if not fresh:
+            session.seen_titles.clear()
+            fresh = ranked
+
+        card = fresh[0]
+        session.last_shown = [card]
+        session.seen_titles.add(card.event.name.strip().casefold())
+        self._log(session, card.event.id, "impression", surface="feed", position=session.swiped)
+
+        lines = []
+        if preamble:
+            lines.append(preamble + "\n")
+        lines.append(f"{_icon(card.event)} {card.event.name}")
+        lines.append(f"💳 {card.event.price} ₽ · {_fmt_when(card.seance)}")
+        lines.append(f"📍 {card.event.place.name}")
+        reason = REASON_TEXT.get(card.top_reason())
+        if reason and session.swiped:
+            lines.append(f"\n💡 {reason}")
+
+        buttons = ["❤️ пойду", "👎 не моё"]
+        # Offered once there is enough signal for a plan to be worth anything.
+        if session.swiped >= 3 and session.profile.balance_general:
+            buttons.append("🗓 собрать план")
+
+        return Reply(
+            text="\n".join(lines),
+            buttons=buttons,
+            image_url=self._photos.for_event(card.event),
+        )
+
+    def _take_swipe(self, session: Session, text: str, now: datetime) -> Reply:
+        t = text.lower().strip()
+        card = session.last_shown[0] if session.last_shown else None
+
+        if "собрать план" in t or t in ("план", "/plan"):
+            return self._plans(session, now)
+        if "сколько осталось" in t or t in ("баланс", "/balance"):
+            return self._balance_note(session, now)
+        if "другой остаток" in t or t == "/balance_set":
+            session.step = Step.EDIT_BALANCE
+            return Reply(text="Сколько сейчас на карте?\n\nНапиши число — например, 4226.")
+        if "другое время" in t or t == "/time":
+            session.step = Step.ASK_TIME
+            return Reply(
+                text="Когда тебе удобно ходить?",
+                buttons=["вечером и в выходные", "только в выходные", "только вечером"],
+            )
+        if "другое настроение" in t or t == "/mood":
+            session.mood = None
+            session.taste.set_mood(None)
+            session.step = Step.ASK_MOOD
+            return Reply(text="Чего сейчас хочется?", buttons=list(MOOD_TARGETS.keys()))
+
+        if card is not None:
+            if "пойд" in t or t in ("да", "+", "интересно", "❤️"):
+                session.taste.add(
+                    card.vector, "like",
+                    decay=timing_weight("like", session.last_timing)
+                    if session.last_timing else 1.0,
+                )
+                self._log(session, card.event.id, "like", surface="feed", position=session.swiped)
+                session.swiped += 1
+                link = card.event.sale_link
+                head = "Записал. Билет:" if link else "Записал."
+                note = f"{head}\n{link}\n\n" if link else f"{head}\n\n"
+                if self._source.is_synthetic:
+                    note = "Записал. Ссылка нерабочая — каталог тестовый.\n\n"
+                return self._swipe(session, now, preamble=note + "Дальше:")
+            if "не мо" in t or t in ("нет", "-", "👎"):
+                session.taste.add(
+                    card.vector, "dislike",
+                    decay=timing_weight("dislike", session.last_timing)
+                    if session.last_timing else 1.0,
+                )
+                self._log(session, card.event.id, "dislike", surface="feed", position=session.swiped)
+                session.swiped += 1
+                return self._swipe(session, now)
+
+        return self._swipe(session, now)
 
     def _quiz_card(self, session: Session) -> str:
         event = session.quiz[session.quiz_at]
@@ -392,6 +597,7 @@ class Dialog:
             return Reply(text="Сколько сейчас на карте?", buttons=["5000", "3200", "1500"])
         if t in ("другое настроение", "/mood"):
             session.mood = None
+            session.taste.set_mood(None)
             session.step = Step.ASK_MOOD
             return Reply(text="Чего сейчас хочется?", buttons=list(MOOD_TARGETS.keys()))
 

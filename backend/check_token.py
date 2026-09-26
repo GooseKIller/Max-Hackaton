@@ -19,7 +19,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parent))
 
 import httpx  # noqa: E402
 
-from app.config import settings  # noqa: E402
+from app.config import settings, ssl_context  # noqa: E402
 
 
 def main() -> int:
@@ -36,6 +36,7 @@ def main() -> int:
             url,
             headers={"Authorization": settings.max_bot_token},
             timeout=15.0,
+            verify=ssl_context(),
         )
     except httpx.HTTPError as exc:
         print(f"\nRequest failed: {exc}")

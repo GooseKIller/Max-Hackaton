@@ -48,6 +48,39 @@ W_URGENCY = 0.10
 # How much a candidate is penalised for resembling something already picked.
 MMR_LAMBDA = 0.35
 
+# --- exploration -> exploitation -------------------------------------------
+#
+# Start wide, narrow fast. The shape is TikTok's; the schedule is not, and the
+# difference matters more than the similarity.
+#
+# TikTok can explore for two hundred videos because its goal is to keep you there.
+# Ours is the opposite: a good session ends in a couple of minutes with a ticket
+# tapped (see docs/design/anti-engagement.md). We get perhaps ten swipes before the
+# person is gone — satisfied, ideally. So the exploration budget is roughly an order
+# of magnitude smaller and the decay has to be correspondingly sharp.
+#
+# Half the exploration is gone after this many signals.
+EXPLORE_HALF_LIFE = 6.0
+# Extra weight handed to discovery when the user is completely cold.
+EXPLORE_BONUS = 0.30
+# How much of the taste weight is withheld while exploring. Not all of it: even one
+# swipe says something, and ignoring it would feel broken.
+EXPLORE_TASTE_DAMPING = 0.7
+# Extra diversity pressure while exploring.
+EXPLORE_MMR_BONUS = 0.30
+
+
+def exploration_rate(signal_count: int) -> float:
+    """
+    1.0 when we know nothing, decaying toward 0 as signals arrive.
+
+    Hyperbolic rather than exponential: it keeps a small, non-zero amount of
+    exploration forever, which is what stops a taste vector collapsing into a
+    single corner of the catalogue — the failure mode where a theatre kid is shown
+    theatre and nothing else until they leave.
+    """
+    return 1.0 / (1.0 + max(0, signal_count) / EXPLORE_HALF_LIFE)
+
 
 def event_vector(event: Event, labels: EventLabels | None = None) -> Vector:
     """
@@ -116,6 +149,9 @@ class Taste:
     """
 
     weights: Vector = field(default_factory=dict)
+    # Session-only pull from the current mood. Kept apart from `weights` and never
+    # written to the database: "what I want tonight" must not become "who I am".
+    mood_overlay: Vector = field(default_factory=dict)
     signal_count: int = 0
 
     def add(self, vector: Vector, signal: str, decay: float = 1.0) -> None:
@@ -126,17 +162,33 @@ class Taste:
             self.weights[key] = self.weights.get(key, 0.0) + w * value
         self.signal_count += 1
 
-    def add_mood(self, mood: str) -> None:
+    def set_mood(self, mood: str | None) -> None:
         """
-        Apply the session's mood as a pull on the affect axes.
+        Set the session's mood as a pull on the affect axes.
 
-        Mood, not emotion: the affective-recommender literature reports that mood
-        helps most in cold start while momentary emotion adds noise. So we ask once
-        per session about something stable over hours.
+        **Replaces, never accumulates.** An earlier version added the mood straight
+        into `weights`, which is persisted — so picking "что-то необычное" four
+        times pushed `affect:novelty` to 5.6 and permanently swamped everything the
+        user had actually swiped on. Mood is situational and lives for one session,
+        exactly as docs/design/emotional-anchors.md says; taste is durable. Keeping
+        them in separate fields makes that impossible to get wrong again.
+
+        Passing None clears it.
         """
+        self.mood_overlay = {}
+        if not mood:
+            return
         for axis, value in MOOD_TARGETS.get(mood, {}).items():
-            key = f"affect:{axis}"
-            self.weights[key] = self.weights.get(key, 0.0) + value
+            self.mood_overlay[f"affect:{axis}"] = value
+
+    def effective(self) -> Vector:
+        """Durable taste plus tonight's mood — what scoring actually compares against."""
+        if not self.mood_overlay:
+            return self.weights
+        merged = dict(self.weights)
+        for key, value in self.mood_overlay.items():
+            merged[key] = merged.get(key, 0.0) + value
+        return merged
 
     @property
     def is_cold(self) -> bool:
@@ -264,12 +316,30 @@ class Ranker:
         today: date | None = None,
     ) -> list[Scored]:
         u = urgency(user, today)
+        # Anneal: wide while we know nothing, narrowing as the person tells us more.
+        explore = exploration_rate(taste.signal_count)
+        w_taste = W_TASTE * (1.0 - EXPLORE_TASTE_DAMPING * explore)
+        w_discovery = W_DISCOVERY + EXPLORE_BONUS * explore
+
         out: list[Scored] = []
         for event, seance in candidates:
             vec = self.vector_for(event)
+            match = max(0.0, cosine(taste.effective(), vec))
+            # Explore where we are uncertain, not where we are confident.
+            #
+            # The long-tail bonus used to be unconditional, which quietly punished
+            # anyone whose genuine taste is popular: simulated users who love
+            # classic theatre scored 17% WORSE than plain date order, because the
+            # catalogue is full of classic theatre and rarity pushed them away from
+            # exactly what they wanted. Gating the bonus on how well we already
+            # understand an item is the bandit principle, and it costs the long tail
+            # nothing — a rare event the user has no opinion on still has a low
+            # match and still gets the full boost.
             parts = {
-                "taste": max(0.0, cosine(taste.weights, vec)) * W_TASTE,
-                "discovery": rarity(vec, self._freq, self._total) * W_DISCOVERY,
+                "taste": match * w_taste,
+                "discovery": rarity(vec, self._freq, self._total)
+                * w_discovery
+                * (1.0 - min(1.0, match)),
                 "budget": budget_fit(event, user) * W_BUDGET,
                 "convenience": convenience(event, seance, user) * W_CONVENIENCE,
                 "urgency": u * W_URGENCY,
@@ -286,7 +356,7 @@ class Ranker:
         out.sort(key=lambda s: s.score, reverse=True)
         return out
 
-    def diversify(self, scored: list[Scored], n: int) -> list[Scored]:
+    def diversify(self, scored: list[Scored], n: int, explore: float = 0.0) -> list[Scored]:
         """
         Maximal marginal relevance.
 
@@ -297,6 +367,11 @@ class Ranker:
         appears as several records, and showing one twice reads as a broken product
         far faster than a merely mediocre pick does.
         """
+        # Forced variety is a cost paid by the user, so charge it while we are
+        # still guessing and refund it once we understand them. Held flat, it takes
+        # someone with a strong, consistent preference and hands them a third of a
+        # feed they did not ask for, forever.
+        lam = MMR_LAMBDA * (0.4 + 0.6 * explore) + EXPLORE_MMR_BONUS * explore
         picked: list[Scored] = []
         seen_titles: set[str] = set()
         pool = []
@@ -312,7 +387,7 @@ class Ranker:
                 penalty = max(
                     (cosine(cand.vector, p.vector) for p in picked), default=0.0
                 )
-                value = cand.score - MMR_LAMBDA * penalty
+                value = cand.score - lam * penalty
                 if value > best_value:
                     best, best_value = cand, value
             if best is None:
@@ -329,7 +404,11 @@ class Ranker:
         n: int = 3,
         today: date | None = None,
     ) -> list[Scored]:
-        return self.diversify(self.score(candidates, user, taste, today), n)
+        return self.diversify(
+            self.score(candidates, user, taste, today),
+            n,
+            explore=exploration_rate(taste.signal_count),
+        )
 
 
 def quiz_cards(

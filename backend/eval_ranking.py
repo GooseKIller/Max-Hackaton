@@ -119,7 +119,7 @@ def main() -> int:
     by_mood: dict[str, set[str]] = {}
     for mood in MOOD_TARGETS:
         taste = Taste()
-        taste.add_mood(mood)
+        taste.set_mood(mood)
         picks = ranker.recommend(pool, user, taste, n=3, today=TODAY)
         by_mood[mood] = {p.event.name for p in picks}
         print(f"\n  {mood}")
