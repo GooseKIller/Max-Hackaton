@@ -156,7 +156,7 @@ def test_editing_balance_does_not_repeat_the_quiz():
     send(d, "другой остаток")
     send(d, "1500")
     send(d, "0")
-    assert d._session("u").step is Step.READY
+    assert d._session("u").step is Step.SWIPE
     assert d._session("u").profile.balance_general == 1500
 
 

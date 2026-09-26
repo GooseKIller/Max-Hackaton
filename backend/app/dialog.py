@@ -27,6 +27,7 @@ from .labeling import label_all
 from .models import Event, Seance, UserProfile
 from .photos import PhotoBook
 from .plans import build_plans
+from .reminders import OPT_IN_PAYLOAD, OPT_OUT_PAYLOAD
 from .timing import Timing, baseline as latency_baseline, weight as timing_weight
 from .taste import MOOD_TARGETS, Ranker, Scored, Taste, mood_match, quiz_cards
 
@@ -234,6 +235,18 @@ class Dialog:
                 # A quiz whose events have aged out of the catalogue cannot resume.
                 if session.step is Step.QUIZ and session.quiz_at >= len(session.quiz):
                     session.step = Step.READY
+                runtime = saved.get("runtime", {})
+                session.swiped = runtime.get("swiped", 0)
+                session.seen_titles = set(runtime.get("seen_titles", []))
+                sent_at = runtime.get("last_sent_at")
+                session.last_sent_at = datetime.fromisoformat(sent_at) if sent_at else None
+                if session.last_sent_at:
+                    scored = self._ranker.score(
+                        candidates(self._events, session.profile, session.last_sent_at),
+                        session.profile, session.taste, today=session.last_sent_at.date(),
+                    )
+                    wanted = runtime.get("last_shown", [])
+                    session.last_shown = [s for s in scored if s.event.id in wanted]
 
         self._sessions[user_id] = session
         return session
@@ -252,6 +265,9 @@ class Dialog:
             quiz_ids=[e.id for e in session.quiz],
             quiz_at=session.quiz_at,
             flow_version=FLOW_VERSION,
+            runtime={"swiped": session.swiped, "seen_titles": sorted(session.seen_titles),
+                     "last_sent_at": session.last_sent_at.isoformat() if session.last_sent_at else None,
+                     "last_shown": [s.event.id for s in session.last_shown]},
         )
 
     def reset(self, user_id: str) -> None:
@@ -263,6 +279,38 @@ class Dialog:
         now = now or datetime.now(ZoneInfo("Europe/Moscow")).replace(tzinfo=None)
         text = (text or "").strip()
         session = self._session(user_id)
+
+        # Settings and reminder actions are global, including mid-onboarding.
+        command = text.lower()
+        if command in ("настройки", "/settings"):
+            if session.profile.age is None:
+                return Reply("Сначала укажи возраст и остаток, затем открой настройки.")
+            return Reply("Что изменить?", ["другой остаток", "другое время", "другое настроение", "напоминания", "Открыть планы", "что посмотреть"])
+        if command in ("напоминания", "/reminders"):
+            enabled = self._store is not None and self._store.is_opted_in(user_id)
+            return Reply(
+                ("Напоминания включены." if enabled else "Напоминания выключены.")
+                + " До трёх сообщений в декабре, с 10:00 до 21:00 по Москве. Можно отключить в любой момент.",
+                ["Отключить напоминания" if enabled else "Включить напоминания", "что посмотреть"],
+            )
+        if command in (OPT_IN_PAYLOAD, OPT_OUT_PAYLOAD, "включить напоминания", "отключить напоминания"):
+            if self._store is None:
+                return Reply("Напоминания недоступны в этом режиме. Продолжим подбор.", ["что посмотреть"])
+            enabled = command in (OPT_IN_PAYLOAD, "включить напоминания")
+            if enabled and session.profile.age is None:
+                return Reply("Сначала укажи возраст и остаток. Затем включи напоминания через /reminders.")
+            self._store.set_reminder_opt_in(user_id, enabled)
+            return Reply("Напоминания включены." if enabled else "Напоминания отключены.", ["что посмотреть", "напоминания"])
+        if command == "обновить остаток":
+            if session.profile.age is None:
+                return self._greet(session)
+            text = "другой остаток"
+            session.step = Step.SWIPE
+        if command == "показать наборы":
+            if session.profile.age is None:
+                return self._greet(session)
+            text = "собрать план"
+            session.step = Step.SWIPE
 
         # How long they took to answer our last card. This is the closest thing a
         # chat bot has to dwell time; see timing.py for what we read into it.
@@ -398,8 +446,8 @@ class Dialog:
     def _after_balance(self, session: Session, now: datetime, editing: bool, note: str = "") -> Reply:
         session.offset = 0
         if editing:
-            session.step = Step.READY
-            return self._recommend(session, now, preamble=note or None)
+            session.step = Step.SWIPE
+            return self._swipe(session, now, preamble=note or None)
         # Straight into the feed. The old flow asked about time and mood and then
         # ran a five-card quiz — eleven steps and 2332 characters before the user
         # saw a single event, against a rule of thumb of five to seven steps to
@@ -484,7 +532,7 @@ class Dialog:
         if reason and session.swiped:
             lines.append(f"\n💡 {reason}")
 
-        buttons = ["❤️ пойду", "👎 не моё"]
+        buttons = ["❤️ пойду", "👎 не моё", "настройки"]
         # Offered once there is enough signal for a plan to be worth anything.
         if session.swiped >= 3 and session.profile.balance_general:
             buttons.append("🗓 собрать план")
@@ -634,7 +682,7 @@ class Dialog:
 
     def _plans(self, session: Session, now: datetime) -> Reply:
         user = session.profile
-        buttons = ["что посмотреть", "другой остаток"]
+        buttons = ["что посмотреть", "другой остаток", "напоминания", "Открыть планы"]
         if user.balance_general is None:
             return Reply("Для расчёта плана нужен точный остаток. Его можно посмотреть в «Госуслуги Культура».", buttons)
         found = candidates(self._events, user, now)

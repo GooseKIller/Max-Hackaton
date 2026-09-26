@@ -1,116 +1,135 @@
-# Max-Hackaton — Pushkin Card leisure assistant
+# Планы по Пушкинской карте
 
-A MAX bot that helps young people (14–22) spend their Pushkin Card on events they will
-actually enjoy — before the money expires on 31 December.
+Бот MAX помогает выбрать события в Казани и собрать план из 2–3 посещений под
+указанный остаток. Реакции уточняют рекомендации, напоминания включаются отдельно.
 
-**Status: working bot and local budget-planner web interface; live MAX validation pending.**
+**26 сентября 2026: локальная версия готова к проверке. Публикация мини-приложения
+и финальный прогон MAX mobile/web пока не завершены.**
+Бот команды: https://max.ru/t179_hakaton_max_bot. Команда проверяла polling 26 сентября,
+но это не гарантия постоянной доступности. [Статус сдачи](docs/submission/README.md).
 
-The contribution in this branch adds budget-aware 2–3-event plans to the existing
-bot, plus a React interface at `/app/` and a stateless Python API. It uses
-**synthetic events with no working ticket purchases**. MAX mobile/web
-integration and real catalogue access still require testing with the team's keys.
-See the [current audit and work packages](docs/development-audit.md) and
-[research review](docs/research/validation.md).
+## Основной сценарий
 
-```bash
-python3 backend/console.py
-```
-Runs the whole conversation in a terminal — no MAX token needed.
-See [backend/README.md](backend/README.md).
+1. Открыть бота, указать возраст 14–22 и точный остаток либо «не знаю».
+2. Просмотреть карточки, выбрать «пойду» / «не моё».
+3. После трёх реакций нажать «собрать план» или отправить /plan раньше.
+4. Получить варианты с ценой и расчётным остатком. Неизвестный общий остаток
+   не позволяет рассчитать план; неизвестный кино-лимит исключает кино.
+5. В настройках изменить остаток, время, настроение, включить/отключить напоминания.
+6. После регистрации мини-приложения «Открыть планы» запускает интерфейс MAX.
+   Интерфейс stateless: параметры вводятся отдельно, синхронизация профиля не имитируется.
 
-To run the visual planner and Python API together:
+**Каталог тестовый:** 1166 сгенерированных записей. Фотографии площадок реальные,
+события и наличие билетов не подтверждены. Покупка по тестовым ссылкам отключена.
+Баланс сообщает пользователь; банковской интеграции и списаний нет.
+
+## Запуск одной командой
+
+Нужны Docker Engine/Desktop и Compose 2.24+. Из корня репозитория:
 
 ```bash
 docker compose up --build
 ```
 
-Open `http://localhost:8000/app/`. See [frontend/README.md](frontend/README.md)
-for development, API contract, browser tests and the MAX integration boundary.
+Открыть http://localhost:8000/app/. API: http://localhost:8000/health,
+документация: http://localhost:8000/docs. Без .env работает локальный UI/API,
+без отправки сообщений MAX. Порт 8000 привязан к localhost.
 
-## Decisions made so far
+```bash
+docker compose stop           # остановить, сохранив данные
+docker compose start          # продолжить
+docker compose down           # удалить контейнеры, сохранить том SQLite
+docker compose up -d --build  # пересобрать и запустить
+```
 
-| Decision | Value |
+Не добавляйте down -v: это удалит профили и историю из тома bot-state.
+Без Docker: python3 backend/console.py запускает консольный диалог.
+Для polling: установить backend/requirements.txt, заполнить .env, запустить
+python3 backend/runner.py. Не запускайте второй polling или webhook для того же
+токена без согласования с владельцем действующего процесса.
+
+## Конфигурация
+
+Скопировать .env.example в .env и заполнить локально. Секреты не публиковать.
+
+| Переменная | Назначение |
 |---|---|
-| Track | Leisure and Entertainment |
-| Audience | Pushkin Card holders, 14–22 |
-| Pilot region | Kazan / Republic of Tatarstan |
-| Backend | Python + FastAPI (allowed — JS/React is a recommendation, not a requirement) |
-| Front end | React + TypeScript, messenger-style grouped rows and bottom sheets; no MAX UI dependency yet |
-| Scope | Bot + standalone web planner implemented; authenticated profile sync and MAX launch remain pending |
+| MAX_BOT_TOKEN | Командный токен организаторов; нужен только для живого MAX |
+| MAX_WEBHOOK_SECRET | Случайный секрет 32–256 символов; пустой отключает webhook |
+| MINI_APP_BOT | Username без @; только после регистрации HTTPS-ссылки приложения |
+| MAX_API_BASE | Официальный API MAX; значение в примере |
+| APP_DOMAIN | Домен существующего сервера для необязательного HTTPS-профиля |
+| CATALOG_PATH | По умолчанию синтетический data/kazan_events.json |
+| DB_PATH | SQLite; Compose использует /srv/state/app.db в постоянном томе |
+| PROCULTURE_API_KEY | Необязательная интеграция; для демо оставить пустым |
+| PROCULTURE_SUBORDINATIONS | Проверенный код региона для живого каталога |
 
-## Documentation
+HTTPS и живые напоминания: [развёртывание](docs/deployment.md).
+Конфигурация не создаёт сервер, не покупает домен и не регистрирует подписку сама.
 
-| Document | What's in it |
-|---|---|
-| [docs/design/takes.md](docs/design/takes.md) | Reviewed product positioning and Russian copy, with implementation status |
-| [docs/research/validation.md](docs/research/validation.md) | Evidence register, corrected inferences and interview/experiment protocol |
-| [docs/development-audit.md](docs/development-audit.md) | What exists, what is missing, priorities and contribution boundaries |
-| [docs/design/budget-plans.md](docs/design/budget-plans.md) | Planner contract, constraints and reproducible demo |
-| [docs/design/planner-copy.md](docs/design/planner-copy.md) | Executable screen states, product copy, demo and usability task |
-| [frontend/README.md](frontend/README.md) | React UI, stateless API, local/Docker run and tests |
-| [docs/compliance-check.md](docs/compliance-check.md) | Our plan checked against every constraint, with what still needs doing |
-| [docs/requirements.md](docs/requirements.md) | What the hackathon requires: constraints, submission checklist, scoring weights |
-| [docs/research/pushkin-card.md](docs/research/pushkin-card.md) | The program, the numbers, the pain, and what data we can actually get |
-| [docs/research/hypothesis-boring-events.md](docs/research/hypothesis-boring-events.md) | Testing "the events are boring": what held up, what didn't, and the reframed product idea |
-| [docs/design/database.md](docs/design/database.md) | The schema, and why the taste vector already *is* a user embedding |
-| [docs/design/anti-engagement.md](docs/design/anti-engagement.md) | **The principle:** unlike TikTok, our goal is to get the user out fast |
-| [docs/design/timing-signals.md](docs/design/timing-signals.md) | How long someone takes to answer, and why a slow "no" counts for less |
-| [docs/design/ranking.md](docs/design/ranking.md) | How we rank events: why collaborative filtering won't work, and what to do instead |
-| [docs/design/emotional-anchors.md](docs/design/emotional-anchors.md) | Why people actually go: narrative transportation, mood vs emotion, and the bridge mechanic |
-| [docs/design/tone.md](docs/design/tone.md) | Why trying to sound young backfires, and the register rules that follow |
-| [docs/research/max-platform.md](docs/research/max-platform.md) | MAX Bot API, mini apps, and which part of the flow goes where |
-| [docs/testing-in-max.md](docs/testing-in-max.md) | How to get a token and actually run the bot inside MAX |
-| [backend/README.md](backend/README.md) | How to run the bot, how the modules fit together, known limitations |
-| [data/README.md](data/README.md) | The synthetic Kazan catalogue: why it exists, how it's shaped, what the funnel shows |
-| [docs/outreach/api-key-request.md](docs/outreach/api-key-request.md) | Draft letter requesting the PRO.Культура.РФ API key, plus the fallback routes |
-| [docs/brief/brief-ru.md](docs/brief/brief-ru.md) | The organizers' original brief (Russian, parsed from PDF) |
+## Архитектура
 
-## The principle
+- Python 3.12 + FastAPI: диалог, правила бюджета, ранжирование, API планов, webhook.
+- React + TypeScript: форма расчёта, варианты планов и карточки; /app/.
+- SQLite: профиль, вкусы, реакции, состояние диалога, согласие и журнал доставки.
+  Один процесс диалога на базу, отдельный процесс напоминаний.
+- MAX REST API: события, сообщения, open_app. MAX Bridge: ссылки и «назад».
+- Культура.РФ: правила и фотографии. Адаптер PRO.Культура.РФ есть, доступ к живому
+  каталогу не подтверждён. Внутренней оплаты и ML-сервиса нет.
 
-TikTok wants you to stay forever. **We want you out of the bot and into a theatre as
-fast as possible.** A 90-second session ending in a tapped ticket is a success; a
-20-minute session is a failure. See [docs/design/anti-engagement.md](docs/design/anti-engagement.md)
-— several design decisions follow from this and would have gone the other way under
-an engagement goal.
+Python-зависимости закреплены в backend/requirements.txt, frontend в
+frontend/pnpm-lock.yaml. В Docker Node нужен только при сборке.
 
-## Key facts to keep in mind
+Планы соблюдают общий и кино-бюджет, исключают повтор постановки и пересечение
+времени, оставляют 45 минут между событиями. Поиск ограничен 30 кандидатами,
+глобальный оптимум не обещаем. Цена «от» означает предварительный расчёт.
 
-- We **cannot read a user's card balance** — no public API. The user tells us.
-- We **cannot sell tickets** — we hand off to the official purchase link.
-- The official programme page lists **5,000 RUB for 2026**, including up to **2,000
-  RUB on cinema**. Rules live in configuration with a source and review date.
-- There is one total balance and a remaining cinema sub-limit inside it. We ask for
-  both; unknown cinema means recommendations without cinema, unknown total means
-  browsing without funded plans. No statistical claim about typical leftover money.
-- A 15–18-year-old in Kazan is a **proposed pilot segment**, to validate in interviews.
-  Regional age statistics are not a nationwide distribution.
-- Cool events outside the program **cannot** be paid with the card — the program is
-  gated by an Expert Council. Our job is ranking what's already inside, not finding
-  what's outside.
+## Проверка
 
-## Open action items
+```bash
+python3 -m venv .venv
+.venv/bin/pip install -r backend/requirements.txt
+.venv/bin/python -m pytest backend/app/tests -q
+.venv/bin/python backend/verify_api.py http://localhost:8000
+```
 
-- [ ] Send the PRO.Культура.РФ key request (`partners@team.culture.ru`) — draft ready, needs team details
-- [ ] Submit the opendata.mkrf.ru key form in parallel — lower bar, may arrive first
-- [ ] Verify the current card limit and whether circuses are now included
-- [x] Review the official 2026 limit: 5,000 RUB, including up to 2,000 on cinema
-- [x] Synthetic Kazan catalogue in the real API schema, so the build isn't blocked on a key
-- [ ] Replace every synthetic number with real ones once a key arrives — and say so on the slides
-- [ ] Survey 20–40 people aged 14–22 in Kazan — include the bare-vs-bridged A/B and the three-register cringe test
-- [ ] Get 5 people aged 15–18 to read every user-facing string before submission
-- [ ] Read the full MAX docs and confirm proactive messaging + mini app launch from a button
-- [ ] Fix the MVP scope
-- [x] Step 1 of the build plan: hard filters, dialog, MAX client, Docker
-- [x] Steps 2-3: affect labelling, taste vectors, ranking with diversity, onboarding quiz
-- [x] SQLite store: profiles, taste vectors, interaction log, session state, catalogue cache
-- [x] Plans in the bot: 2–3 events, aggregate budgets, schedule checks, estimated prices
-- [x] Unknown balances preserved; user-report date does not advance on every interaction
-- [x] React planner, stateless API, grouped inputs, preference sheets, plan details and empty/error states
-- [ ] Connect the HTTPS mini-app to MAX and validate signed initData before profile sync
-- [ ] Measure a clean full product Docker build against the 5-minute cap on the submission machine
-- [x] Bot token in hand and verified: @t179_hakaton_max_bot
-- [ ] Message the bot from MAX, then finish `probe_max.py --chat <id>` — keyboards and **proactive sends**
-- [ ] Verify the MAX keyboard payload shape against a live token
-- [ ] Architectural rule: no ML at runtime — label and embed offline, ship artifacts
-- [ ] Test the full scenario in **both** mobile and web MAX
-- [ ] Pick the bot username (irreversible)
+Ручной сценарий UI: возраст 18, остаток 3000, кино выключено, любые интересы.
+Подобрать план, открыть вариант. Сумма не выше 3000, остаток неотрицателен,
+2–3 события. Покупка отключена на тестовых данных. Ноль и узкие фильтры могут дать
+пустой результат; параметры меняются без перезапуска.
+
+Напоминания: /reminders, включить, проверить подтверждение, отключить.
+До согласия сообщений нет. Окна 15–30, 4–14 и 0–3 дня до 31 декабря,
+с 10:00 до 21:00 по Москве; максимум одна успешная отправка в каждом окне.
+После 31 декабря настроенного года отправка прекращается.
+Preview не отправляет и не помечает доставку:
+python -m backend.app.reminder_worker --once --dry-run.
+
+[Браузерные тесты](frontend/README.md).
+[Результаты проверки](docs/submission/verification.md).
+
+## Данные и ограничения безопасности
+
+Храним MAX ID, возраст, введённые суммы и дату, предпочтения и реакции. Имена,
+телефоны, реквизиты карты не запрашиваем. API планов не читает профиль, не принимает
+пользовательские ID; данные формы остаются в памяти страницы.
+
+Webhook закрыт по умолчанию, проверяет секрет, ограничивает тело запроса,
+игнорирует некорректные события и подтверждает callbacks. Профиль и готовый ответ
+сохраняются транзакционно. Повтор события не повторяет шаг диалога.
+Сбой между сетевой отправкой и записью успеха может дублировать ответ;
+exactly-once не обещаем. Отправленные квитанции удаляются через семь дней.
+
+TLS-проверка включена; публичный корневой сертификат Минцифры дополняет обычный
+набор доверенных сертификатов. Не открывайте порт 8000 напрямую наружу.
+Для реального пилота нужны политика хранения, ответственный за обращения и
+проверка прав на медиа. Автоматического удаления профиля в UI пока нет.
+
+## Материалы
+
+- [Сдача и внешние шаги](docs/submission/README.md)
+- [Развёртывание](docs/deployment.md)
+- [OpenAPI](docs/submission/openapi.json), [DATA-API](docs/submission/DATA-API.yaml)
+- [Алгоритм планов](docs/design/budget-plans.md), [тексты UI](docs/design/planner-copy.md)
+- [Факты, гипотезы и протокол исследования](docs/research/validation.md)
+- [Исходное задание](docs/brief/brief-ru.md)

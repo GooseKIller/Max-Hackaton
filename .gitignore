@@ -10,6 +10,7 @@ frontend/dist/
 frontend/test-results/
 frontend/playwright-report/
 frontend/.browsers/
+.release-build/
 
 # local database
 data/app.db

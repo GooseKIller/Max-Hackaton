@@ -2,11 +2,12 @@
 #     docker compose up --build
 services:
   bot:
+    image: max-hackaton:local
     build:
       context: .
       dockerfile: backend/Dockerfile
     ports:
-      - "8000:8000"
+      - "127.0.0.1:8000:8000"
     env_file:
       - path: .env
         required: false
@@ -20,6 +21,22 @@ services:
       interval: 10s
       timeout: 3s
       retries: 5
+    restart: unless-stopped
+
+  reminders:
+    image: max-hackaton:local
+    profiles: [live]
+    command: ["python", "-m", "backend.app.reminder_worker", "--loop"]
+    env_file:
+      - path: .env
+        required: true
+    environment:
+      DB_PATH: /srv/state/app.db
+    volumes:
+      - bot-state:/srv/state
+    depends_on:
+      bot:
+        condition: service_healthy
     restart: unless-stopped
 
 volumes:

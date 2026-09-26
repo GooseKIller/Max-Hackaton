@@ -1,5 +1,12 @@
 # Development audit and contribution plan
 
+**Historical audit below (25 September).** The 26 September release integrates
+upstream's live MAX fixes and reminder branch, wires consent, hardens webhook,
+ships photos in Docker, persists the current feed card and provides HTTPS setup.
+Use [current README](../README.md), [deployment](deployment.md) and
+[submission status](submission/README.md) for remaining work. The old P0 list below
+must not be read as the status of the current source.
+
 Reviewed 25 September 2026 against upstream `443c187` (24 September), then the local
 contribution branch `feat/budget-plans-and-product-research`.
 This is a source review and local test result, not certification of a deployed bot.

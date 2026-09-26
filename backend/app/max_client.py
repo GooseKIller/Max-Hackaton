@@ -16,6 +16,9 @@ Both are here. Long polling is the default because it works from a laptop.
 from __future__ import annotations
 
 import logging
+import hashlib
+import json
+import time
 from dataclasses import dataclass
 from typing import Any
 
@@ -34,10 +37,11 @@ class IncomingMessage:
     # Present for a button press. MAX expects the press to be acknowledged, or the
     # button keeps showing a spinner in the client.
     callback_id: str | None = None
+    update_key: str | None = None
 
 
 class MaxClient:
-    def __init__(self, token: str, base_url: str, timeout: float = 65.0):
+    def __init__(self, token: str, base_url: str, timeout: float = 65.0, mini_app_bot: str = ""):
         if not token:
             raise ValueError("MAX_BOT_TOKEN is empty")
         from .config import ssl_context
@@ -49,6 +53,7 @@ class MaxClient:
             verify=ssl_context(),
         )
         self._marker: int | None = None
+        self._mini_app_bot = mini_app_bot
 
     def close(self) -> None:
         self._client.close()
@@ -61,7 +66,7 @@ class MaxClient:
         text: str,
         buttons: list[str] | None = None,
         image_url: str | None = None,
-    ) -> None:
+    ) -> bool:
         """
         Send a message, optionally with a picture and suggested replies.
 
@@ -79,9 +84,7 @@ class MaxClient:
             keyboard = {
                 "type": "inline_keyboard",
                 "payload": {
-                    "buttons": [
-                        [{"type": "callback", "text": b, "payload": b}] for b in buttons
-                    ]
+                    "buttons": self.keyboard_rows(buttons)
                 },
             }
 
@@ -96,10 +99,10 @@ class MaxClient:
                 payload["attachments"] = attachments
             try:
                 r = self._client.post(
-                    "/messages", params={"chat_id": chat_id}, json=payload
+                    "/messages", params={"chat_id": chat_id}, json=payload, timeout=6.0
                 )
             except httpx.HTTPError as exc:
-                log.error("send_message request failed for chat %s: %s", chat_id, exc)
+                log.warning("send_message transport failure: %s", type(exc).__name__)
                 return False
             if r.status_code < 400:
                 return True
@@ -110,9 +113,21 @@ class MaxClient:
             return False
 
         if attempt(with_image=True):
-            return
+            return True
         if image_url and attempt(with_image=False):
             log.info("resent without the picture for chat %s", chat_id)
+            return True
+        return False
+
+    def keyboard_rows(self, buttons: list[str]) -> list[list[dict]]:
+        rows = []
+        for label in buttons:
+            if label == "Открыть планы":
+                if self._mini_app_bot:
+                    rows.append([{"type": "open_app", "text": label, "web_app": self._mini_app_bot}])
+            else:
+                rows.append([{"type": "callback", "text": label, "payload": label}])
+        return rows
 
     # -- receiving -----------------------------------------------------------
 
@@ -126,8 +141,8 @@ class MaxClient:
 
         The body is NOT optional. The documentation shows `{}` as a valid minimal
         request; a live bot answers
-        `{"code":"proto.payload","message":"Invalid request. \`message\` or
-        \`notification\` required"}`. An empty `notification` satisfies it without
+        `{"code":"proto.payload","message":"Invalid request. message or
+        notification required"}`. An empty `notification` satisfies it without
         showing the user a toast.
         """
         try:
@@ -135,6 +150,7 @@ class MaxClient:
                 "/answers",
                 params={"callback_id": callback_id},
                 json={"notification": ""},
+                timeout=3.0,
             )
             if r.status_code >= 400:
                 # Log what MAX actually objected to. A bare status code sent us
@@ -157,21 +173,47 @@ class MaxClient:
             body = r.json()
         except httpx.HTTPError as exc:
             log.warning("get_updates failed: %s", exc)
+            time.sleep(2)
             return []
         except ValueError:
             log.warning("get_updates returned non-JSON")
             return []
 
+        if not isinstance(body, dict) or not isinstance(body.get("updates", []), list):
+            time.sleep(2)
+            return []
         self._marker = body.get("marker", self._marker)
         return [m for m in (parse_update(u) for u in body.get("updates", [])) if m]
 
-    def subscribe_webhook(self, url: str) -> None:
+    def subscribe_webhook(self, url: str, secret: str) -> None:
         """Register a webhook for the deployed bot."""
-        r = self._client.post("/subscriptions", json={"url": url})
+        r = self._client.post("/subscriptions", json={"url": url, "secret": secret,
+            "update_types": ["bot_started", "message_created", "message_callback"]})
         r.raise_for_status()
+        if not r.json().get("success"):
+            raise RuntimeError("MAX refused webhook registration")
 
 
 def parse_update(update: dict) -> IncomingMessage | None:
+    """Validate an untrusted update before routing it to the conversation."""
+    try:
+        message = _parse_update(update)
+        if message is None or not isinstance(message.text, str) or len(message.text) > 4000:
+            return None
+        if message.callback_id is not None and not isinstance(message.callback_id, str):
+            return None
+        mid = ((update.get("message") or {}).get("body") or {}).get("mid")
+        stable_id = message.callback_id or mid
+        identity = [message.user_id, message.chat_id,
+                    "callback" if message.callback_id else "message", stable_id]
+        key = hashlib.sha256(json.dumps(identity if stable_id else update,
+            sort_keys=True, ensure_ascii=False).encode()).hexdigest()
+        return IncomingMessage(message.user_id, message.chat_id, message.text, message.callback_id, key)
+    except (AttributeError, TypeError, ValueError, OverflowError):
+        return None
+
+
+def _parse_update(update: dict) -> IncomingMessage | None:
     """
     Pull a usable message out of one update.
 
@@ -192,7 +234,6 @@ def parse_update(update: dict) -> IncomingMessage | None:
 
     if kind in ("message_callback", "callback"):
         cb = update.get("callback") or {}
-        log.debug("raw callback update: %s", update)
         msg = update.get("message") or {}
         sender = (cb.get("user") or {}).get("user_id")
         chat_id = (msg.get("recipient") or {}).get("chat_id")

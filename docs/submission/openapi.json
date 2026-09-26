@@ -1,0 +1,427 @@
+{
+  "openapi": "3.1.0",
+  "info": {
+    "title": "Pushkin Card leisure assistant",
+    "description": "Helps 14-22 year olds spend their Pushkin Card on events they will actually like.",
+    "version": "0.1.0"
+  },
+  "paths": {
+    "/api/planner/meta": {
+      "get": {
+        "tags": [
+          "Stateless budget planner"
+        ],
+        "summary": "Metadata",
+        "operationId": "metadata_api_planner_meta_get",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": true,
+                  "type": "object",
+                  "title": "Response Metadata Api Planner Meta Get"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/planner/plans": {
+      "post": {
+        "tags": [
+          "Stateless budget planner"
+        ],
+        "summary": "Calculate",
+        "operationId": "calculate_api_planner_plans_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/PlanRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PlannerResult"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/health": {
+      "get": {
+        "summary": "Health",
+        "description": "Liveness, plus enough context to tell what this instance is serving.",
+        "operationId": "health_health_get",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": true,
+                  "type": "object",
+                  "title": "Response Health Health Get"
+                }
+              }
+            }
+          }
+        }
+      }
+    }
+  },
+  "components": {
+    "schemas": {
+      "EventView": {
+        "properties": {
+          "id": {
+            "type": "integer",
+            "title": "Id"
+          },
+          "title": {
+            "type": "string",
+            "title": "Title"
+          },
+          "category": {
+            "type": "string",
+            "title": "Category"
+          },
+          "category_label": {
+            "type": "string",
+            "title": "Category Label"
+          },
+          "description": {
+            "type": "string",
+            "title": "Description"
+          },
+          "venue": {
+            "type": "string",
+            "title": "Venue"
+          },
+          "address": {
+            "type": "string",
+            "title": "Address"
+          },
+          "age": {
+            "type": "integer",
+            "title": "Age"
+          },
+          "start": {
+            "type": "string",
+            "title": "Start"
+          },
+          "end": {
+            "type": "string",
+            "title": "End"
+          },
+          "price": {
+            "type": "integer",
+            "title": "Price"
+          },
+          "price_is_minimum": {
+            "type": "boolean",
+            "title": "Price Is Minimum"
+          },
+          "ticket_url": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Ticket Url"
+          }
+        },
+        "type": "object",
+        "required": [
+          "id",
+          "title",
+          "category",
+          "category_label",
+          "description",
+          "venue",
+          "address",
+          "age",
+          "start",
+          "end",
+          "price",
+          "price_is_minimum",
+          "ticket_url"
+        ],
+        "title": "EventView"
+      },
+      "HTTPValidationError": {
+        "properties": {
+          "detail": {
+            "items": {
+              "$ref": "#/components/schemas/ValidationError"
+            },
+            "type": "array",
+            "title": "Detail"
+          }
+        },
+        "type": "object",
+        "title": "HTTPValidationError"
+      },
+      "PlanRequest": {
+        "properties": {
+          "age": {
+            "type": "integer",
+            "maximum": 22.0,
+            "minimum": 14.0,
+            "title": "Age"
+          },
+          "balance": {
+            "type": "integer",
+            "maximum": 5000.0,
+            "minimum": 0.0,
+            "title": "Balance"
+          },
+          "cinema_balance": {
+            "anyOf": [
+              {
+                "type": "integer",
+                "maximum": 2000.0,
+                "minimum": 0.0
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Cinema Balance"
+          },
+          "categories": {
+            "items": {
+              "type": "string",
+              "enum": [
+                "spektakli",
+                "vystavki",
+                "koncerty",
+                "ekskursii",
+                "kino",
+                "prochie"
+              ]
+            },
+            "type": "array",
+            "maxItems": 6,
+            "title": "Categories"
+          },
+          "availability": {
+            "type": "string",
+            "enum": [
+              "both",
+              "evenings",
+              "weekends"
+            ],
+            "title": "Availability",
+            "default": "both"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "age",
+          "balance"
+        ],
+        "title": "PlanRequest"
+      },
+      "PlanView": {
+        "properties": {
+          "kind": {
+            "type": "string",
+            "enum": [
+              "interests",
+              "variety",
+              "budget"
+            ],
+            "title": "Kind"
+          },
+          "title": {
+            "type": "string",
+            "title": "Title"
+          },
+          "explanation": {
+            "type": "string",
+            "title": "Explanation"
+          },
+          "events": {
+            "items": {
+              "$ref": "#/components/schemas/EventView"
+            },
+            "type": "array",
+            "title": "Events"
+          },
+          "total": {
+            "type": "integer",
+            "title": "Total"
+          },
+          "cinema_total": {
+            "type": "integer",
+            "title": "Cinema Total"
+          },
+          "remaining": {
+            "type": "integer",
+            "title": "Remaining"
+          },
+          "estimated": {
+            "type": "boolean",
+            "title": "Estimated"
+          }
+        },
+        "type": "object",
+        "required": [
+          "kind",
+          "title",
+          "explanation",
+          "events",
+          "total",
+          "cinema_total",
+          "remaining",
+          "estimated"
+        ],
+        "title": "PlanView"
+      },
+      "PlannerResult": {
+        "properties": {
+          "status": {
+            "type": "string",
+            "enum": [
+              "ready",
+              "no_plans",
+              "no_events",
+              "horizon_ended"
+            ],
+            "title": "Status"
+          },
+          "plans": {
+            "items": {
+              "$ref": "#/components/schemas/PlanView"
+            },
+            "type": "array",
+            "title": "Plans"
+          },
+          "events": {
+            "items": {
+              "$ref": "#/components/schemas/EventView"
+            },
+            "type": "array",
+            "title": "Events"
+          },
+          "balance": {
+            "type": "integer",
+            "title": "Balance"
+          },
+          "cinema_balance": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Cinema Balance"
+          },
+          "calculated_at": {
+            "type": "string",
+            "title": "Calculated At"
+          },
+          "synthetic": {
+            "type": "boolean",
+            "title": "Synthetic"
+          },
+          "catalogue_as_of": {
+            "type": "string",
+            "title": "Catalogue As Of"
+          },
+          "horizon_end": {
+            "type": "string",
+            "title": "Horizon End"
+          },
+          "transfer_minutes": {
+            "type": "integer",
+            "title": "Transfer Minutes",
+            "default": 45
+          }
+        },
+        "type": "object",
+        "required": [
+          "status",
+          "plans",
+          "events",
+          "balance",
+          "cinema_balance",
+          "calculated_at",
+          "synthetic",
+          "catalogue_as_of",
+          "horizon_end"
+        ],
+        "title": "PlannerResult"
+      },
+      "ValidationError": {
+        "properties": {
+          "loc": {
+            "items": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "integer"
+                }
+              ]
+            },
+            "type": "array",
+            "title": "Location"
+          },
+          "msg": {
+            "type": "string",
+            "title": "Message"
+          },
+          "type": {
+            "type": "string",
+            "title": "Error Type"
+          },
+          "input": {
+            "title": "Input"
+          },
+          "ctx": {
+            "type": "object",
+            "title": "Context"
+          }
+        },
+        "type": "object",
+        "required": [
+          "loc",
+          "msg",
+          "type"
+        ],
+        "title": "ValidationError"
+      }
+    }
+  }
+}

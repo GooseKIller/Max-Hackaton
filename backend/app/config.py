@@ -139,6 +139,9 @@ ELIGIBLE_AGE_MAX = 22
 
 @dataclass(frozen=True)
 class Settings:
+    # Closed by default. Register the same secret with MAX before enabling webhook.
+    max_webhook_secret: str = field(default_factory=lambda: os.getenv("MAX_WEBHOOK_SECRET", ""))
+    mini_app_bot: str = field(default_factory=lambda: os.getenv("MINI_APP_BOT", ""))
     max_bot_token: str = field(default_factory=lambda: os.getenv("MAX_BOT_TOKEN", ""))
     max_api_base: str = field(
         default_factory=lambda: os.getenv("MAX_API_BASE", "https://platform-api2.max.ru")

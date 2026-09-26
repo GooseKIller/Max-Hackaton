@@ -21,10 +21,12 @@ from __future__ import annotations
 import argparse
 import logging
 import time
+from datetime import datetime
+from pathlib import Path
 
 from .config import settings
 from .db import Store
-from .reminders import Reminder, run_once
+from .reminders import MSK, Reminder, due, run_once
 
 log = logging.getLogger(__name__)
 
@@ -107,12 +109,27 @@ def main() -> None:
     parser.add_argument(
         "--dry-run", action="store_true", help="print reminders instead of sending"
     )
+    parser.add_argument("--preview-at", help="ISO datetime for dry-run only; never send with a fake date")
     args = parser.parse_args()
+    preview_at = None
+    if args.preview_at:
+        if not args.dry_run:
+            parser.error("--preview-at requires --dry-run")
+        try:
+            preview_at = datetime.fromisoformat(args.preview_at)
+            if preview_at.tzinfo is None:
+                preview_at = preview_at.replace(tzinfo=MSK)
+        except ValueError:
+            parser.error("Invalid ISO datetime")
 
-    store = Store(settings.db_path)
+    store = Store(Path(__file__).resolve().parents[2] / settings.db_path)
     send = _dry_run if args.dry_run else MaxSender(settings.max_bot_token, settings.max_api_base)
 
     try:
+        if args.dry_run:
+            for reminder in due(store, preview_at) if preview_at else due(store):
+                _dry_run(reminder)
+            return  # Preview must not claim or mark any deliveries.
         if args.once:
             _pass(store, send)
         else:
