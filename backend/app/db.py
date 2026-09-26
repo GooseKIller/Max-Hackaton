@@ -141,6 +141,33 @@ CREATE TABLE IF NOT EXISTS event_labels (
     PRIMARY KEY (event_id, labeler)
 );
 
+-- Reminder opt-in, one row per person. Separate from `users` so the reminder
+-- feature stays self-contained and never rewrites a profile the dialog owns.
+-- Reminders are OFF until the person explicitly turns them on (see
+-- docs/design/reminders.md), because an unasked-for "your money is expiring"
+-- message is exactly the pressure tone.md tells us to avoid.
+CREATE TABLE IF NOT EXISTS reminder_prefs (
+    user_id    TEXT PRIMARY KEY,
+    opted_in   INTEGER NOT NULL DEFAULT 0,
+    updated_at TEXT    NOT NULL
+);
+
+-- Which reminders have already gone out. One row per (person, year, rule), so a
+-- year yields at most three sends (d30/d14/d3) and the scheduler can run as often
+-- as it likes without repeating one. `status` separates "claimed the slot" from
+-- "actually delivered": a crash between the send and the mark leaves a 'sending'
+-- row that reclaim frees after a grace period, rather than a lost or duplicated
+-- reminder. See docs/design/reminders.md.
+CREATE TABLE IF NOT EXISTS reminders_sent (
+    user_id    TEXT    NOT NULL,
+    year       INTEGER NOT NULL,
+    rule_key   TEXT    NOT NULL,           -- d30 | d14 | d3
+    status     TEXT    NOT NULL DEFAULT 'sending',  -- sending | sent
+    claimed_at TEXT    NOT NULL,
+    sent_at    TEXT,
+    UNIQUE(user_id, year, rule_key)
+);
+
 CREATE TABLE IF NOT EXISTS schema_meta (
     key   TEXT PRIMARY KEY,
     value TEXT NOT NULL
@@ -420,7 +447,8 @@ class Store:
         """
         with self._tx() as c:
             for table in ("users", "taste_weights", "user_embeddings",
-                          "interactions", "sessions"):
+                          "interactions", "sessions", "reminder_prefs",
+                          "reminders_sent"):
                 c.execute(f"DELETE FROM {table} WHERE user_id = ?", (user_id,))
 
     # -- catalogue cache -----------------------------------------------------
@@ -470,6 +498,89 @@ class Store:
                     for l in labels
                 ],
             )
+
+    # -- reminders -----------------------------------------------------------
+
+    def set_reminder_opt_in(self, user_id: str, opted_in: bool) -> None:
+        """Record the person's explicit choice. Off until they turn it on."""
+        with self._tx() as c:
+            c.execute(
+                """
+                INSERT INTO reminder_prefs (user_id, opted_in, updated_at)
+                VALUES (?,?,?)
+                ON CONFLICT(user_id) DO UPDATE SET
+                    opted_in=excluded.opted_in, updated_at=excluded.updated_at
+                """,
+                (user_id, int(opted_in), _now()),
+            )
+
+    def is_opted_in(self, user_id: str) -> bool:
+        row = self._conn.execute(
+            "SELECT opted_in FROM reminder_prefs WHERE user_id = ?", (user_id,)
+        ).fetchone()
+        return bool(row["opted_in"]) if row else False
+
+    def opted_in_user_ids(self) -> list[str]:
+        rows = self._conn.execute(
+            "SELECT user_id FROM reminder_prefs WHERE opted_in = 1"
+        ).fetchall()
+        return [r["user_id"] for r in rows]
+
+    def claim_reminder(
+        self, user_id: str, year: int, rule_key: str, stale_before: str
+    ) -> bool:
+        """
+        Try to take ownership of one (person, year, rule) send. Returns True if this
+        caller now owns it and should send.
+
+        Either a fresh INSERT wins the slot, or — if a previous attempt is stuck in
+        'sending' and older than `stale_before` — an UPDATE reclaims it. A row still
+        'sending' but recent, or already 'sent', yields False.
+        """
+        now = _now()
+        inserted = self._conn.execute(
+            """
+            INSERT OR IGNORE INTO reminders_sent
+                (user_id, year, rule_key, status, claimed_at)
+            VALUES (?,?,?,'sending',?)
+            """,
+            (user_id, year, rule_key, now),
+        )
+        if inserted.rowcount == 1:
+            self._conn.commit()
+            return True
+        reclaimed = self._conn.execute(
+            """
+            UPDATE reminders_sent SET claimed_at = ?
+            WHERE user_id = ? AND year = ? AND rule_key = ?
+              AND status = 'sending' AND claimed_at < ?
+            """,
+            (now, user_id, year, rule_key, stale_before),
+        )
+        self._conn.commit()
+        return reclaimed.rowcount == 1
+
+    def mark_reminder_sent(self, user_id: str, year: int, rule_key: str) -> None:
+        with self._tx() as c:
+            c.execute(
+                """
+                UPDATE reminders_sent SET status = 'sent', sent_at = ?
+                WHERE user_id = ? AND year = ? AND rule_key = ?
+                """,
+                (_now(), user_id, year, rule_key),
+            )
+
+    def reminder_status(
+        self, user_id: str, year: int, rule_key: str
+    ) -> str | None:
+        row = self._conn.execute(
+            """
+            SELECT status FROM reminders_sent
+            WHERE user_id = ? AND year = ? AND rule_key = ?
+            """,
+            (user_id, year, rule_key),
+        ).fetchone()
+        return row["status"] if row else None
 
     def stats(self) -> dict:
         def count(table: str) -> int:
