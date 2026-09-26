@@ -73,7 +73,8 @@ In a MAX context, seller clicks use `WebApp.openLink`; an open details sheet hoo
 the native BackButton. No unsupported `ready()` call or Telegram API is assumed.
 
 This is a **standalone, stateless web interface**, ready for integration work, not a
-verified signed-in MAX mini-app. The team must register its HTTPS URL in the bot
+verified signed-in MAX mini-app. Backend now supports an opt-in open_app button via
+MINI_APP_BOT; leave it empty until registration. The team must register its HTTPS URL in the bot
 settings and test iOS/Android/web MAX. See [official setup](https://dev.max.ru/docs/webapps/introduction).
 Before syncing saved bot profiles, validate MAX `initData` server-side and derive
 identity there. Never trust `initDataUnsafe.user.id` or a query-string ID. MAX UI
@@ -81,8 +82,9 @@ components are not a dependency in this contribution; styling uses standard HTML
 
 Before public deployment: configure a reverse-proxy request-size limit and rate
 limits; avoid logging request bodies; review legal/privacy text; verify the real
-catalogue city and seller links. The existing bot webhook needs its separate security
-review. None of these deployment steps is implied by a successful local UI demo.
+catalogue city and seller links. The bot webhook now requires a secret, validates
+input, acknowledges callbacks and persists retry receipts. See ../docs/deployment.md
+for remaining deployment checks. No deployment is implied by a local UI demo.
 
 ## Tests
 

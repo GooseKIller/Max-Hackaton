@@ -1,0 +1,64 @@
+{
+  "config_version": "1.0",
+  "solution_id": "pushkin-card-planner",
+  "team_id": null,
+  "api_base_url": null,
+  "deployment_status": "awaiting_hosting",
+  "authentication": "none; stateless endpoints do not access bot profiles",
+  "checks": [
+    {
+      "method": "GET",
+      "path": "/health",
+      "role": "public",
+      "expected_status": 200,
+      "expected_format": "application/json",
+      "assertions": [
+        "status == ok"
+      ]
+    },
+    {
+      "method": "GET",
+      "path": "/api/planner/meta",
+      "role": "public",
+      "expected_status": 200,
+      "expected_format": "application/json",
+      "assertions": [
+        "city == Казань",
+        "synthetic == true"
+      ]
+    },
+    {
+      "method": "POST",
+      "path": "/api/planner/plans",
+      "role": "public",
+      "body": {
+        "age": 18,
+        "balance": 3000,
+        "cinema_balance": null,
+        "categories": [],
+        "availability": "both"
+      },
+      "expected_status": 200,
+      "expected_format": "application/json",
+      "assertions": [
+        "plans[*].total <= balance",
+        "plans[*].remaining >= 0",
+        "synthetic == true"
+      ]
+    },
+    {
+      "method": "POST",
+      "path": "/api/planner/plans",
+      "role": "public",
+      "body": {
+        "age": 18,
+        "balance": -1,
+        "cinema_balance": null,
+        "categories": [],
+        "availability": "both"
+      },
+      "expected_status": 422,
+      "expected_format": "application/json"
+    }
+  ]
+}

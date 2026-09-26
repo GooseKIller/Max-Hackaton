@@ -1,5 +1,12 @@
 # Reminders: the one proactive message
 
+**26 September integration update:** consent is now wired through `/reminders` and
+settings; reminder callbacks reach balance editing and plans, opt-out is available
+in every reminder. Compose `live` profile starts the worker. Preview never marks
+delivery, expired years are excluded, zero balances are skipped, and delivery hours
+are 10:00–21:00 Moscow. The earlier handoff instructions below are historical.
+Current deployment and remaining live checks: [deployment.md](../deployment.md).
+
 Design note. Status: implemented (`app/reminders.py`, `app/reminder_worker.py`,
 schema in `app/db.py`, tests in `app/tests/test_reminders.py`). Live MAX delivery still
 to be checked with the team's token.

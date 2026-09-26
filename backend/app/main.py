@@ -17,16 +17,20 @@ which covers one of the required artifacts for solutions with their own API.
 from __future__ import annotations
 
 import logging
+import asyncio
+import hmac
+import json
 from contextlib import asynccontextmanager
 from pathlib import Path
 
-from fastapi import FastAPI, Request
+from fastapi import FastAPI, Request, HTTPException
 from fastapi.staticfiles import StaticFiles
 
 from .catalog import build_source
 from .config import CARD_RULES_2026, settings
 from .db import Store
 from .dialog import Dialog
+from .delivery import Delivery
 from .max_client import MaxClient, parse_update
 from .planner_api import PlannerService, router as planner_router
 
@@ -50,7 +54,9 @@ async def lifespan(app: FastAPI):
     state["dialog"] = Dialog(source, store)
     state["source"] = source
     app.state.planner = PlannerService(source)
-    state["max"] = MaxClient(settings.max_bot_token, settings.max_api_base) if settings.has_max_token else None
+    state["max"] = MaxClient(settings.max_bot_token, settings.max_api_base,
+                             mini_app_bot=settings.mini_app_bot) if settings.has_max_token else None
+    state["delivery"] = Delivery(state["dialog"], store, state["max"])
 
     log.info(
         "catalogue: %d events, %s, as of %s",
@@ -59,7 +65,7 @@ async def lifespan(app: FastAPI):
         source.as_of,
     )
     if state["max"] is None:
-        log.warning("MAX_BOT_TOKEN not set — the webhook will accept updates but cannot reply")
+        log.warning("MAX_BOT_TOKEN not set — local planner only; no live bot replies")
     yield
     if state.get("max"):
         state["max"].close()
@@ -86,7 +92,7 @@ def health() -> dict:
         "data_is_synthetic": source.is_synthetic if source else None,
         "data_as_of": source.as_of if source else None,
         "max_token_configured": settings.has_max_token,
-        "db": state["store"].stats() if state.get("store") else None,
+        "webhook_enabled": bool(settings.max_webhook_secret),
         "card_rules": {
             "total": CARD_RULES_2026.total,
             "cinema_cap": CARD_RULES_2026.cinema_cap,
@@ -98,15 +104,22 @@ def health() -> dict:
 
 @app.post("/webhook")
 async def webhook(request: Request) -> dict:
-    """
-    Receive one update from MAX and reply.
-
-    Always returns 200: an error here would make MAX retry, and a retry storm on a
-    malformed update is worse than dropping it. Failures go to the log.
-    """
+    """Secret-checked updates. Malformed updates are ignored; transient failures retry."""
+    if not settings.max_webhook_secret:
+        raise HTTPException(503, "Webhook disabled")
+    secret = request.headers.get("X-Max-Bot-Api-Secret", "")
+    if not hmac.compare_digest(secret.encode(), settings.max_webhook_secret.encode()):
+        raise HTTPException(403, "Invalid webhook secret")
+    if state["delivery"].client is None:
+        raise HTTPException(503, "Bot transport not configured")
+    raw = bytearray()
+    async for chunk in request.stream():
+        raw.extend(chunk)
+        if len(raw) > 65536:
+            raise HTTPException(413, "Update too large")
     try:
-        update = await request.json()
-    except Exception:
+        update = json.loads(raw)
+    except (ValueError, UnicodeDecodeError):
         log.warning("webhook got a non-JSON body")
         return {"ok": True}
 
@@ -115,16 +128,12 @@ async def webhook(request: Request) -> dict:
         return {"ok": True}
 
     try:
-        reply = state["dialog"].handle(message.user_id, message.text)
+        delivered = await asyncio.to_thread(state["delivery"].handle, message)
     except Exception:
-        log.exception("dialog failed for user %s", message.user_id)
-        reply = None
-
-    client = state.get("max")
-    if client and reply:
-        client.send_message(message.chat_id, reply.text, reply.buttons, reply.image_url)
-    elif reply:
-        log.info("would reply to %s: %s", message.chat_id, reply.text[:80])
+        log.exception("update processing failed")
+        raise HTTPException(503, "Retry update")
+    if not delivered:
+        raise HTTPException(503, "Retry delivery")
 
     return {"ok": True}
 

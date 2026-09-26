@@ -13,6 +13,7 @@ from __future__ import annotations
 import logging
 import os
 import sys
+import time
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
@@ -21,6 +22,7 @@ from app.catalog import build_source  # noqa: E402
 from app.config import settings  # noqa: E402
 from app.db import Store  # noqa: E402
 from app.dialog import Dialog  # noqa: E402
+from app.delivery import Delivery  # noqa: E402
 from app.max_client import MaxClient  # noqa: E402
 
 _level = logging.DEBUG if os.getenv("BOT_DEBUG") else logging.INFO
@@ -46,7 +48,8 @@ def main() -> None:
     )
     store = Store(root / settings.db_path)
     dialog = Dialog(source, store)
-    client = MaxClient(settings.max_bot_token, settings.max_api_base)
+    client = MaxClient(settings.max_bot_token, settings.max_api_base, mini_app_bot=settings.mini_app_bot)
+    delivery = Delivery(dialog, store, client)
 
     log.info(
         "catalogue: %d events (%s)",
@@ -58,21 +61,20 @@ def main() -> None:
     try:
         while True:
             for message in client.get_updates():
-                log.info("<- %s: %s", message.user_id, message.text[:60])
-                try:
-                    reply = dialog.handle(message.user_id, message.text)
-                except Exception:
-                    # One bad message must not stop the bot. The user can continue
-                    # after an error without a restart — a scored criterion.
-                    log.exception("dialog failed for %s", message.user_id)
-                    continue
-                if message.callback_id:
-                    client.answer_callback(message.callback_id)
-                client.send_message(message.chat_id, reply.text, reply.buttons, reply.image_url)
+                for attempt in range(3):
+                    try:
+                        if delivery.handle(message):
+                            break
+                    except Exception:
+                        log.exception("update processing failed")
+                    time.sleep(2 ** attempt)
+                else:
+                    log.error("Delivery exhausted; restart or webhook redelivery may be required")
     except KeyboardInterrupt:
         log.info("stopping")
     finally:
         client.close()
+        store.close()
 
 
 if __name__ == "__main__":

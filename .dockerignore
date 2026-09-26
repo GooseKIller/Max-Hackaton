@@ -8,6 +8,7 @@ __pycache__
 data/*.db
 data/*.db-*
 .pytest_cache
+.release-build
 docs
 *.pdf
 .DS_Store

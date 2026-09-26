@@ -67,7 +67,7 @@ def _expiry() -> date:
 def days_left(now: datetime | None = None) -> int:
     """Whole days from today (Moscow) to the expiry date. 0 on the day itself."""
     today = (now.astimezone(MSK) if now else datetime.now(MSK)).date()
-    return max(0, (_expiry() - today).days)
+    return (_expiry() - today).days
 
 
 def rule_for(days: int) -> str | None:
@@ -95,7 +95,10 @@ def _report_date_ru(reported_at: str | None) -> str | None:
     if not reported_at:
         return None
     try:
-        return datetime.fromisoformat(reported_at).astimezone(MSK).strftime("%d.%m")
+        reported = datetime.fromisoformat(reported_at)
+        if reported.tzinfo is None:
+            reported = reported.replace(tzinfo=MSK)
+        return reported.astimezone(MSK).strftime("%d.%m")
     except ValueError:
         return None
 
@@ -131,25 +134,25 @@ def render(
         text = (
             f"Лимит Пушкинской карты сгорает 31 декабря — это {days_phrase}. "
             f"{reported} ты называл остаток {balance_general} ₽ — проверь его "
-            f"и посмотри, что рядом под эту сумму."
+            f"и посмотри события в Казани под эту сумму."
         )
     elif balance_general is not None:
         text = (
             f"Лимит Пушкинской карты сгорает 31 декабря — это {days_phrase}. "
             f"Ты называл остаток {balance_general} ₽ — проверь его и посмотри, "
-            f"что рядом под эту сумму."
+            f"события в Казани под эту сумму."
         )
     else:
         text = (
             f"Лимит Пушкинской карты сгорает 31 декабря — это {days_phrase}. "
-            f"Загляни, проверь остаток и посмотри, что рядом."
+            f"Проверь остаток и посмотри события в Казани."
         )
 
     return Reminder(
         user_id=user_id,
         rule_key=rule_key,
         text=text,
-        buttons=["Обновить остаток", "Показать наборы"],
+        buttons=["Обновить остаток", "Показать наборы", "Отключить напоминания"],
     )
 
 
@@ -162,7 +165,7 @@ def due(store: Store, now: datetime | None = None) -> list[Reminder]:
     now = now or datetime.now(MSK)
     days = days_left(now)
     rule = rule_for(days)
-    if rule is None:
+    if rule is None or not 10 <= now.astimezone(MSK).hour < 21:
         return []
 
     year = now.astimezone(MSK).year
@@ -174,6 +177,8 @@ def due(store: Store, now: datetime | None = None) -> list[Reminder]:
         if store.reminder_status(user_id, year, rule) == "sent":
             continue
         profile = store.load_profile(user_id)
+        if profile is None or profile.age is None or profile.balance_general == 0:
+            continue
         out.append(
             render(
                 user_id,
@@ -199,15 +204,24 @@ def run_once(store: Store, send, now: datetime | None = None) -> dict:
     """
     now = now or datetime.now(MSK)
     year = now.astimezone(MSK).year
-    stale_before = (now.astimezone(MSK) - STALE_AFTER).isoformat(timespec="seconds")
+    utc_now = now.astimezone(timezone.utc)
+    stale_before = (utc_now - STALE_AFTER).isoformat(timespec="seconds")
 
     sent = failed = 0
     for reminder in due(store, now):
         if not store.claim_reminder(
-            reminder.user_id, year, reminder.rule_key, stale_before
+            reminder.user_id, year, reminder.rule_key, stale_before,
+            claimed_at=utc_now.isoformat(timespec="seconds"),
         ):
             continue  # someone else owns it, or it is not stale yet
-        if send(reminder):
+        # Recheck consent immediately before handing the message to the sender.
+        if not store.is_opted_in(reminder.user_id):
+            continue
+        try:
+            delivered = send(reminder)
+        except Exception:
+            delivered = False
+        if delivered:
             store.mark_reminder_sent(reminder.user_id, year, reminder.rule_key)
             sent += 1
         else:

@@ -172,6 +172,12 @@ CREATE TABLE IF NOT EXISTS schema_meta (
     key   TEXT PRIMARY KEY,
     value TEXT NOT NULL
 );
+CREATE TABLE IF NOT EXISTS update_receipts (
+    update_key TEXT PRIMARY KEY,
+    reply TEXT NOT NULL,
+    sent INTEGER NOT NULL DEFAULT 0,
+    created_at TEXT NOT NULL
+);
 """
 
 
@@ -187,6 +193,7 @@ class Store:
         self.path.parent.mkdir(parents=True, exist_ok=True)
         self._conn = sqlite3.connect(str(self.path), check_same_thread=False)
         self._conn.row_factory = sqlite3.Row
+        self._atomic = False
         self._conn.execute("PRAGMA journal_mode=WAL")
         self._conn.execute("PRAGMA foreign_keys=ON")
         self._migrate()
@@ -196,12 +203,43 @@ class Store:
 
     @contextmanager
     def _tx(self) -> Iterator[sqlite3.Connection]:
+        if self._atomic:
+            yield self._conn
+            return
         try:
             yield self._conn
             self._conn.commit()
         except Exception:
             self._conn.rollback()
             raise
+
+    @contextmanager
+    def atomic(self):
+        """Single-process dialog transaction: profile, signals and reply commit together."""
+        self._conn.execute("BEGIN IMMEDIATE")
+        self._atomic = True
+        try:
+            yield
+            self._conn.commit()
+        except Exception:
+            self._conn.rollback()
+            raise
+        finally:
+            self._atomic = False
+
+    def get_receipt(self, key: str) -> dict | None:
+        row = self._conn.execute("SELECT reply, sent FROM update_receipts WHERE update_key=?", (key,)).fetchone()
+        return {"reply": json.loads(row["reply"]), "sent": bool(row["sent"])} if row else None
+
+    def save_receipt(self, key: str, reply: dict) -> None:
+        with self._tx() as c:
+            c.execute("INSERT INTO update_receipts(update_key,reply,created_at) VALUES (?,?,?)",
+                      (key, json.dumps(reply, ensure_ascii=False), _now()))
+
+    def mark_update_sent(self, key: str) -> None:
+        with self._tx() as c:
+            c.execute("UPDATE update_receipts SET sent=1 WHERE update_key=?", (key,))
+            c.execute("DELETE FROM update_receipts WHERE sent=1 AND julianday(created_at) < julianday('now','-7 days')")
 
     def _migrate(self) -> None:
         with self._tx() as c:
@@ -215,6 +253,8 @@ class Store:
                 c.execute(
                     "ALTER TABLE sessions ADD COLUMN flow_version INTEGER NOT NULL DEFAULT 0"
                 )
+            if "runtime" not in cols:
+                c.execute("ALTER TABLE sessions ADD COLUMN runtime TEXT")
             c.execute(
                 "INSERT OR REPLACE INTO schema_meta (key, value) VALUES (?, ?)",
                 ("schema_version", str(SCHEMA_VERSION)),
@@ -405,22 +445,23 @@ class Store:
         quiz_ids: list[int],
         quiz_at: int,
         flow_version: int = 0,
+        runtime: dict | None = None,
     ) -> None:
         with self._tx() as c:
             c.execute(
                 """
                 INSERT INTO sessions
                     (user_id, step, list_offset, mood, quiz_ids, quiz_at,
-                     flow_version, updated_at)
-                VALUES (?,?,?,?,?,?,?,?)
+                     flow_version, updated_at, runtime)
+                VALUES (?,?,?,?,?,?,?,?,?)
                 ON CONFLICT(user_id) DO UPDATE SET
                     step=excluded.step, list_offset=excluded.list_offset,
                     mood=excluded.mood, quiz_ids=excluded.quiz_ids,
                     quiz_at=excluded.quiz_at, flow_version=excluded.flow_version,
-                    updated_at=excluded.updated_at
+                    updated_at=excluded.updated_at, runtime=excluded.runtime
                 """,
                 (user_id, step, list_offset, mood, json.dumps(quiz_ids), quiz_at,
-                 flow_version, _now()),
+                 flow_version, _now(), json.dumps(runtime or {})),
             )
 
     def load_session(self, user_id: str) -> dict | None:
@@ -436,6 +477,7 @@ class Store:
             "quiz_ids": json.loads(row["quiz_ids"] or "[]"),
             "quiz_at": row["quiz_at"],
             "flow_version": row["flow_version"] if "flow_version" in row.keys() else 0,
+            "runtime": json.loads(row["runtime"] or "{}"),
         }
 
     def forget(self, user_id: str) -> None:
@@ -527,7 +569,8 @@ class Store:
         return [r["user_id"] for r in rows]
 
     def claim_reminder(
-        self, user_id: str, year: int, rule_key: str, stale_before: str
+        self, user_id: str, year: int, rule_key: str, stale_before: str,
+        claimed_at: str | None = None,
     ) -> bool:
         """
         Try to take ownership of one (person, year, rule) send. Returns True if this
@@ -537,7 +580,7 @@ class Store:
         'sending' and older than `stale_before` — an UPDATE reclaims it. A row still
         'sending' but recent, or already 'sent', yields False.
         """
-        now = _now()
+        now = claimed_at or _now()
         inserted = self._conn.execute(
             """
             INSERT OR IGNORE INTO reminders_sent

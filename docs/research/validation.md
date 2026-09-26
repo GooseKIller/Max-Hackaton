@@ -139,7 +139,7 @@ the catalogue or claiming wins. Report raw counts alongside percentages.
 | Plan choice rate | Explicitly selected plans / sessions shown a feasible plan | UI opens plan details; explicit firm-choice action/event still pending; opening is not selecting |
 | Seller click rate | Observed seller-link clicks / event cards shown | Not yet instrumented; typing an event title must not count |
 | Planned utilisation | Sum of selected quoted prices / reported B | Estimate only; neither actual spend nor annual utilisation |
-| Reminder opt-in | Explicit consent / eligible users offered reminders | Scheduler and opt-in not yet implemented |
+| Reminder opt-in | Explicit consent / eligible users offered reminders | Scheduler and explicit consent implemented 26 Sep; no measured live delivery or opt-in rate yet |
 | Purchase / attendance | Verified partner feedback or explicitly labelled self-report | Unobserved; cannot use clicks as purchases |
 
 Do not compare a self-selected pilot's planned spending with a national annual average

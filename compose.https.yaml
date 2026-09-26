@@ -1,0 +1,21 @@
+# Optional server overlay. Requires an existing server/domain; creates no paid resources.
+# docker compose -f compose.yaml -f compose.https.yaml --profile live up -d --build
+services:
+  https:
+    image: caddy:2.10.2-alpine
+    ports:
+      - "80:80"
+      - "443:443"
+    environment:
+      APP_DOMAIN: ${APP_DOMAIN:?Set the server hostname in .env}
+    volumes:
+      - ./deploy/Caddyfile:/etc/caddy/Caddyfile:ro
+      - caddy-data:/data
+      - caddy-config:/config
+    depends_on:
+      bot:
+        condition: service_healthy
+    restart: unless-stopped
+volumes:
+  caddy-data:
+  caddy-config:
