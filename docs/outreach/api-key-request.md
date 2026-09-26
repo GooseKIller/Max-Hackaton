@@ -1,3 +1,27 @@
+> ## Organizer answer (received 26 September 2026) — RESOLVED
+>
+> The hackathon organizers replied: participants are **not** given separate access to
+> the Культура.РФ / PRO.Культура.РФ API, and **no ready event export is provided**. For
+> event data we may use:
+>
+> - available open data and official sources;
+> - our own prepared test/demo catalogue for the MVP;
+> - other available data sources under their terms of use.
+>
+> **What this settles.** There is no partnership key coming through the hackathon, so
+> the letter below is now only relevant as the *independent* open-data route
+> (opendata.mkrf.ru, see "the second, independent route"). Our **labelled synthetic
+> catalogue is now the sanctioned MVP path, not a fallback** — the organizers named it
+> explicitly. The compliance requirement is unchanged: state clearly in the README and
+> the presentation that the catalogue is demo data, which we already do
+> (`data/README.md`, `is_synthetic` flags, `meta.is_demo_data`). If time allows, the
+> open-data snapshot still upgrades the demo to real Kazan events; it is no longer on
+> the critical path.
+>
+> The rest of this document is kept for the open-data route and for the record.
+
+---
+
 # Email: requesting a PRO.Культура.РФ API key
 
 **To:** partners@team.culture.ru
