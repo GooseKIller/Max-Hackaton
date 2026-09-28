@@ -21,11 +21,13 @@ from __future__ import annotations
 import argparse
 import logging
 import time
+from contextlib import closing
 from datetime import datetime
 from pathlib import Path
 
 from .config import settings
 from .db import Store
+from .process_control import shutdown_event
 from .reminders import MSK, Reminder, due, run_once
 
 log = logging.getLogger(__name__)
@@ -89,13 +91,16 @@ def _dry_run(reminder: Reminder) -> bool:
     return True
 
 
-def _pass(store: Store, send) -> dict:
+def _pass(store: Store, send, stop=None) -> dict:
     def throttled(reminder: Reminder) -> bool:
         ok = send(reminder)
-        time.sleep(_MIN_GAP_SECONDS)
+        if stop is None:
+            time.sleep(_MIN_GAP_SECONDS)
+        else:
+            stop.wait(_MIN_GAP_SECONDS)
         return ok
 
-    result = run_once(store, throttled)
+    result = run_once(store, throttled, should_stop=stop.is_set if stop is not None else None)
     log.info("reminder pass: sent=%s failed=%s", result["sent"], result["failed"])
     return result
 
@@ -122,24 +127,22 @@ def main() -> None:
         except ValueError:
             parser.error("Invalid ISO datetime")
 
-    store = Store(Path(__file__).resolve().parents[2] / settings.db_path)
-    send = _dry_run if args.dry_run else MaxSender(settings.max_bot_token, settings.max_api_base)
-
-    try:
-        if args.dry_run:
-            for reminder in due(store, preview_at) if preview_at else due(store):
-                _dry_run(reminder)
-            return  # Preview must not claim or mark any deliveries.
-        if args.once:
-            _pass(store, send)
-        else:
-            while True:
-                _pass(store, send)
-                time.sleep(LOOP_EVERY_SECONDS)
-    finally:
-        if hasattr(send, "close"):
-            send.close()
-        store.close()
+    with shutdown_event() as stop, closing(Store(
+        Path(__file__).resolve().parents[2] / settings.db_path
+    )) as store:
+        send = _dry_run if args.dry_run else MaxSender(settings.max_bot_token, settings.max_api_base)
+        try:
+            if args.dry_run:
+                for reminder in due(store, preview_at) if preview_at else due(store):
+                    _dry_run(reminder)
+                return  # Preview must not claim or mark any deliveries.
+            while not stop.is_set():
+                _pass(store, send, stop)
+                if args.once or stop.wait(LOOP_EVERY_SECONDS):
+                    break
+        finally:
+            if hasattr(send, "close"):
+                send.close()
 
 
 if __name__ == "__main__":

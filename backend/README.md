@@ -24,6 +24,15 @@ cp .env.example .env    # only if .env does not exist; fill private settings
 python3 backend/runner.py
 ```
 
+To run polling and the reminder worker together in Docker:
+
+```bash
+docker compose -f compose.polling.yaml up -d --build
+```
+
+This is a standalone configuration, not an overlay for the UI/API. Coordinate
+the handover first; do not run a second receiver for the team's bot.
+
 ### As a service (local UI/API)
 
 ```bash
@@ -64,6 +73,11 @@ prints the real catalogue funnel numbers.
 ```bash
 python3 -m pytest backend/app/tests -q
 ```
+
+Docker polling checks run in CI with `backend/tests/compose.polling-test.yaml`.
+They use an isolated HTTP substitute, a separate database and no external network.
+They cover the dialog, restart, shared consent and reminder delivery to that substitute;
+they do not replace testing in real MAX clients.
 
 ## How it fits together
 
@@ -124,7 +138,7 @@ Three deliberate boundaries:
   balance, so we ask and label it as their number, not a verified one.
 - **Final MAX validation is pending.** The team checked polling and the basic
   dialog on 26 September; the current version still needs mobile/web verification.
-- **Tests checked on 28 September 2026** — all 168 pass locally. These tests do not
+- **Tests checked on 28 September 2026** — all 179 pass locally. These tests do not
   verify real MAX delivery or availability.
 - **No location question yet**, so the distance filter is inactive in the default
   flow. `UserProfile.home` and the filter both work; the dialog just does not ask.

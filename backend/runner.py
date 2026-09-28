@@ -1,8 +1,8 @@
 """
 Long-polling runner: the bot, live in MAX, without needing a public HTTPS address.
 
-Use this during development. The deployed version should use the webhook in
-`app/main.py` instead.
+Can also run on an always-on host. Do not run it alongside a webhook receiver
+or another polling process for the same bot.
 
     export MAX_BOT_TOKEN=...
     python3 backend/runner.py
@@ -14,6 +14,7 @@ import logging
 import os
 import sys
 import time
+from contextlib import closing
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
@@ -24,6 +25,7 @@ from app.db import Store  # noqa: E402
 from app.dialog import Dialog  # noqa: E402
 from app.delivery import Delivery  # noqa: E402
 from app.max_client import MaxClient  # noqa: E402
+from app.process_control import shutdown_event  # noqa: E402
 
 _level = logging.DEBUG if os.getenv("BOT_DEBUG") else logging.INFO
 logging.basicConfig(level=_level, format="%(asctime)s %(levelname)s %(message)s")
@@ -37,11 +39,11 @@ def blocking_reason(client, has_token: bool) -> str | None:
     """
     Why this process must not poll, or None if it may.
 
-    Split out from the loop so the decision can be tested without starting one.
-    Two cases, and the second is the dangerous one: MAX hands each update to a
-    single consumer, so a poller running beside a registered webhook does not
-    duplicate traffic — it takes a random share of it and the bot answers roughly
-    every other message.
+    A function rather than a branch inside the loop so the decision can be tested
+    without starting one. Two cases, and the second is the dangerous one: MAX hands
+    each update to a single consumer, so a poller running beside a registered
+    webhook does not duplicate traffic — it takes a random share of it and the bot
+    answers roughly every other message.
     """
     if not has_token:
         return "MAX_BOT_TOKEN is not set"
@@ -56,14 +58,39 @@ def _idle(reason: str) -> None:
     """
     Stay up, do nothing, say why.
 
-    Only used with --service. A container that exits non-zero would crash-loop and
-    bury the actual reason in restart noise; one that exits zero looks like it
-    finished successfully. Idling keeps the reason on screen in `docker compose
-    logs` and leaves the rest of the stack running.
+    Only used with --service, where this process is a container in the default
+    stack. Exiting non-zero would crash-loop and bury the cause in restart noise;
+    exiting zero would look like it had finished. Idling keeps the reason visible
+    in `docker compose logs polling` and leaves the API and UI running.
     """
     log.warning("%s — not polling. Fix the cause and restart this service.", reason)
     while True:
         time.sleep(3600)
+
+
+def poll_updates(client, delivery, stop) -> None:
+    while not stop.is_set():
+        messages = client.get_updates()
+        if not messages:
+            # Invalid responses may return immediately; do not spin on them.
+            stop.wait(1)
+            continue
+        for message in messages:
+            for attempt in range(3):
+                if stop.is_set():
+                    return
+                try:
+                    if delivery.handle(message):
+                        break
+                except Exception:
+                    log.exception("update processing failed")
+                if attempt < 2 and stop.wait(2 ** attempt):
+                    return
+            else:
+                # Keep the receipt unsent. One blocked chat must not stop the bot.
+                log.error("Delivery exhausted; skipping this update without marking it sent")
+            if stop.is_set():
+                return
 
 
 def main(argv: list[str] | None = None) -> None:
@@ -84,44 +111,30 @@ def main(argv: list[str] | None = None) -> None:
         subordinations=settings.proculture_subordinations or None,
         fixture_path=root / settings.catalog_path,
     )
-    store = Store(root / settings.db_path)
-    dialog = Dialog(source, store)
-    client = MaxClient(settings.max_bot_token, settings.max_api_base, mini_app_bot=settings.mini_app_bot)
-    delivery = Delivery(dialog, store, client)
+    blocked: str | None = None
+    with shutdown_event() as stop, closing(Store(root / settings.db_path)) as store:
+        with closing(MaxClient(settings.max_bot_token, settings.max_api_base,
+                               mini_app_bot=settings.mini_app_bot)) as client:
+            delivery = Delivery(Dialog(source, store), store, client)
+            log.info(
+                "catalogue: %d events (%s)",
+                len(source.all_events()),
+                "SYNTHETIC" if source.is_synthetic else "live",
+            )
+            blocked = blocking_reason(client, settings.has_max_token)
+            if not blocked:
+                log.info("polling %s", settings.max_api_base)
+                poll_updates(client, delivery, stop)
+                log.info("stopping")
 
-    log.info(
-        "catalogue: %d events (%s)",
-        len(source.all_events()),
-        "SYNTHETIC" if source.is_synthetic else "live",
-    )
-    blocked = blocking_reason(client, settings.has_max_token)
+    # Idle only after the database and HTTP client are closed: a service that sits
+    # here for hours should not be holding either open.
     if blocked:
-        client.close()
-        store.close()
         if service:
             _idle(blocked)
         log.error("%s. Polling would steal a random share of its updates.", blocked)
         raise SystemExit(1)
 
-    log.info("polling %s", settings.max_api_base)
-
-    try:
-        while True:
-            for message in client.get_updates():
-                for attempt in range(3):
-                    try:
-                        if delivery.handle(message):
-                            break
-                    except Exception:
-                        log.exception("update processing failed")
-                    time.sleep(2 ** attempt)
-                else:
-                    log.error("Delivery exhausted; restart or webhook redelivery may be required")
-    except KeyboardInterrupt:
-        log.info("stopping")
-    finally:
-        client.close()
-        store.close()
 
 
 if __name__ == "__main__":
