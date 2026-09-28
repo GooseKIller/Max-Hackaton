@@ -26,7 +26,7 @@ python backend/runner.py
 существующий файл команды сохраняйте. `.env` загружается автоматически.
 Прежний polling команды должен быть остановлен по согласованию до запуска нового.
 
-Для проверки API/UI: `docker compose up -d --build`, затем
+Для проверки решения целиком (API, UI и polling бота): `docker compose up -d --build`, затем
 `python backend/verify_api.py http://localhost:8000`. Compose запускает uvicorn,
 но не polling. Перед обновлением рабочей
 базы сделайте резервную копию через SQLite backup API; не копируйте только основной

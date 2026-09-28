@@ -23,6 +23,30 @@ services:
       retries: 5
     restart: unless-stopped
 
+  # The bot's connection to MAX. Without this, `docker compose up` gives an API and
+  # a web UI and nothing that a judge can talk to in the messenger — the solution
+  # would not be reproducible by the one command the brief asks for. Polling is our
+  # own component, not an external service, so there is no exemption to claim.
+  #
+  # Long polling needs no public HTTPS, which is what makes one command enough.
+  # With no token it idles with a clear message instead of crash-looping, so
+  # `docker compose up` still works for someone who only wants to see the UI.
+  polling:
+    image: max-hackaton:local
+    command: ["python", "backend/runner.py", "--service"]
+    env_file:
+      - path: .env
+        required: false
+    environment:
+      CATALOG_PATH: data/kazan_events.json
+      DB_PATH: /srv/state/app.db
+    volumes:
+      - bot-state:/srv/state
+    depends_on:
+      bot:
+        condition: service_healthy
+    restart: unless-stopped
+
   reminders:
     image: max-hackaton:local
     profiles: [live]

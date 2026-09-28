@@ -33,8 +33,46 @@ for _noisy in ("httpx", "httpcore", "hpack"):
 log = logging.getLogger("runner")
 
 
-def main() -> None:
+def blocking_reason(client, has_token: bool) -> str | None:
+    """
+    Why this process must not poll, or None if it may.
+
+    Split out from the loop so the decision can be tested without starting one.
+    Two cases, and the second is the dangerous one: MAX hands each update to a
+    single consumer, so a poller running beside a registered webhook does not
+    duplicate traffic — it takes a random share of it and the bot answers roughly
+    every other message.
+    """
+    if not has_token:
+        return "MAX_BOT_TOKEN is not set"
+    subscriptions = client.list_subscriptions()
+    if subscriptions:
+        urls = ", ".join(str(sub.get("url", "?")) for sub in subscriptions)
+        return f"a webhook is already registered ({urls})"
+    return None
+
+
+def _idle(reason: str) -> None:
+    """
+    Stay up, do nothing, say why.
+
+    Only used with --service. A container that exits non-zero would crash-loop and
+    bury the actual reason in restart noise; one that exits zero looks like it
+    finished successfully. Idling keeps the reason on screen in `docker compose
+    logs` and leaves the rest of the stack running.
+    """
+    log.warning("%s — not polling. Fix the cause and restart this service.", reason)
+    while True:
+        time.sleep(3600)
+
+
+def main(argv: list[str] | None = None) -> None:
+    service = "--service" in (argv if argv is not None else sys.argv[1:])
+
     if not settings.has_max_token:
+        message = "MAX_BOT_TOKEN is not set"
+        if service:
+            _idle(f"{message}; the API and UI keep working without it")
         print("MAX_BOT_TOKEN is not set.")
         print("Copy .env.example to .env and put the token from the organizers there,")
         print("or try the conversation without MAX:  python3 backend/console.py")
@@ -56,6 +94,15 @@ def main() -> None:
         len(source.all_events()),
         "SYNTHETIC" if source.is_synthetic else "live",
     )
+    blocked = blocking_reason(client, settings.has_max_token)
+    if blocked:
+        client.close()
+        store.close()
+        if service:
+            _idle(blocked)
+        log.error("%s. Polling would steal a random share of its updates.", blocked)
+        raise SystemExit(1)
+
     log.info("polling %s", settings.max_api_base)
 
     try:

@@ -185,6 +185,26 @@ class MaxClient:
         self._marker = body.get("marker", self._marker)
         return [m for m in (parse_update(u) for u in body.get("updates", [])) if m]
 
+    def list_subscriptions(self) -> list[dict]:
+        """
+        Webhooks currently registered for this bot.
+
+        Used to refuse to poll when a webhook is already delivering. MAX hands each
+        update to one consumer, so a poller running beside a webhook does not
+        duplicate traffic — it *steals* a random share of it, and the bot answers
+        every other message. That failure is intermittent and miserable to debug,
+        so we check instead of assuming.
+        """
+        try:
+            r = self._client.get("/subscriptions")
+            if r.status_code >= 400:
+                log.warning("list_subscriptions HTTP %s: %s", r.status_code, r.text[:160])
+                return []
+            return r.json().get("subscriptions", []) or []
+        except (httpx.HTTPError, ValueError) as exc:
+            log.warning("list_subscriptions failed: %s", exc)
+            return []
+
     def subscribe_webhook(self, url: str, secret: str) -> None:
         """Register a webhook for the deployed bot."""
         r = self._client.post("/subscriptions", json={"url": url, "secret": secret,
