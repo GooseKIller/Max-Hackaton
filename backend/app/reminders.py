@@ -191,7 +191,7 @@ def due(store: Store, now: datetime | None = None) -> list[Reminder]:
     return out
 
 
-def run_once(store: Store, send, now: datetime | None = None) -> dict:
+def run_once(store: Store, send, now: datetime | None = None, should_stop=None) -> dict:
     """
     One scheduler pass. `send(reminder) -> bool` does the actual delivery and returns
     whether it succeeded; keeping it injectable means this whole module is testable
@@ -209,6 +209,8 @@ def run_once(store: Store, send, now: datetime | None = None) -> dict:
 
     sent = failed = 0
     for reminder in due(store, now):
+        if should_stop and should_stop():
+            break
         if not store.claim_reminder(
             reminder.user_id, year, reminder.rule_key, stale_before,
             claimed_at=utc_now.isoformat(timespec="seconds"),
@@ -217,6 +219,8 @@ def run_once(store: Store, send, now: datetime | None = None) -> dict:
         # Recheck consent immediately before handing the message to the sender.
         if not store.is_opted_in(reminder.user_id):
             continue
+        if should_stop and should_stop():
+            break  # Unsent claims remain retryable after the stale window.
         try:
             delivered = send(reminder)
         except Exception:

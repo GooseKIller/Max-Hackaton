@@ -1,0 +1,57 @@
+# Apply after compose.polling.yaml with a separate disposable project name.
+# No .env is read, no ports are published, and containers cannot reach the Internet.
+x-test-env: &test-env
+  MAX_BOT_TOKEN: local-smoke-only
+  MAX_API_BASE: http://fake-max:8080
+  MAX_WEBHOOK_SECRET: ""
+  MINI_APP_BOT: ""
+  PROCULTURE_API_KEY: ""
+  PROCULTURE_SUBORDINATIONS: ""
+  CATALOG_PATH: data/kazan_events.json
+  DB_PATH: /srv/state/app.db
+  HTTP_PROXY: ""
+  HTTPS_PROXY: ""
+  ALL_PROXY: ""
+  NO_PROXY: "*"
+
+services:
+  polling:
+    env_file: !reset []
+    environment: *test-env
+    restart: "no"
+    depends_on:
+      fake-max:
+        condition: service_healthy
+
+  reminders:
+    env_file: !reset []
+    environment: *test-env
+    restart: "no"
+    depends_on:
+      fake-max:
+        condition: service_healthy
+
+  fake-max:
+    image: max-hackaton:polling
+    command: [python, /srv/backend/tests/polling_smoke.py, server]
+    environment: *test-env
+    volumes:
+      - ./backend/tests/polling_smoke.py:/srv/backend/tests/polling_smoke.py:ro
+    healthcheck:
+      test: [CMD, python, -c, "import urllib.request; urllib.request.urlopen('http://localhost:8080/health', timeout=2)"]
+      interval: 1s
+      timeout: 3s
+      retries: 20
+
+  smoke:
+    image: max-hackaton:polling
+    profiles: [checks]
+    command: [python, /srv/backend/tests/polling_smoke.py, flow]
+    environment: *test-env
+    volumes:
+      - bot-state:/srv/state
+      - ./backend/tests/polling_smoke.py:/srv/backend/tests/polling_smoke.py:ro
+
+networks:
+  default:
+    internal: true

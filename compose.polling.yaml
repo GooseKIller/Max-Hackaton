@@ -1,0 +1,35 @@
+# Standalone bot deployment; do not combine with compose.yaml or the HTTPS overlay.
+# docker compose -f compose.polling.yaml up -d --build
+name: max-hackaton-polling
+
+x-runtime: &runtime
+  image: max-hackaton:polling
+  build:
+    context: .
+    dockerfile: backend/Dockerfile
+  env_file:
+    - path: ${BOT_ENV_FILE:-.env}
+      required: true
+  environment:
+    CATALOG_PATH: data/kazan_events.json
+    DB_PATH: /srv/state/app.db
+  volumes:
+    - bot-state:/srv/state
+  init: true
+  restart: unless-stopped
+  stop_grace_period: 90s
+
+services:
+  polling:
+    <<: *runtime
+    command: ["python", "backend/runner.py"]
+
+  reminders:
+    <<: *runtime
+    command: ["python", "-m", "backend.app.reminder_worker", "--loop"]
+    depends_on:
+      polling:
+        condition: service_started
+
+volumes:
+  bot-state:

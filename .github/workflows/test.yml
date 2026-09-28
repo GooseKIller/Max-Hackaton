@@ -20,3 +20,38 @@ jobs:
         working-directory: frontend
       - run: docker compose config --quiet
       - run: docker build -f backend/Dockerfile -t max-hackaton:test .
+      - name: Polling and reminders in Docker
+        env:
+          COMPOSE_FILE: compose.polling.yaml:backend/tests/compose.polling-test.yaml
+          COMPOSE_PROJECT_NAME: max-hackaton-polling-smoke
+        run: |
+          docker tag max-hackaton:test max-hackaton:polling
+          docker compose --env-file /dev/null config --quiet
+          docker compose --env-file /dev/null up -d fake-max polling
+          docker compose --env-file /dev/null run --rm --no-deps smoke
+          docker compose --env-file /dev/null restart polling
+          docker compose --env-file /dev/null run --rm --no-deps smoke python /srv/backend/tests/polling_smoke.py after-restart
+          docker compose --env-file /dev/null run --rm --no-deps smoke python /srv/backend/tests/polling_smoke.py reminder
+          docker compose --env-file /dev/null up -d reminders
+          for attempt in $(seq 1 20); do
+            if docker compose --env-file /dev/null logs reminders | grep -q 'reminder pass:'; then break; fi
+            sleep 1
+          done
+          docker compose --env-file /dev/null logs reminders | grep -q 'reminder pass:'
+          docker compose --env-file /dev/null stop polling reminders
+          for service in polling reminders; do
+            container=$(docker compose --env-file /dev/null ps -aq "$service")
+            test "$(docker inspect -f '{{.State.ExitCode}}' "$container")" = 0
+          done
+      - name: Polling smoke logs
+        if: failure()
+        env:
+          COMPOSE_FILE: compose.polling.yaml:backend/tests/compose.polling-test.yaml
+          COMPOSE_PROJECT_NAME: max-hackaton-polling-smoke
+        run: docker compose --env-file /dev/null logs --tail=100
+      - name: Remove isolated test containers
+        if: always()
+        env:
+          COMPOSE_FILE: compose.polling.yaml:backend/tests/compose.polling-test.yaml
+          COMPOSE_PROJECT_NAME: max-hackaton-polling-smoke
+        run: docker compose --env-file /dev/null down -v
