@@ -7,44 +7,46 @@ reasoning is in the design note.
 
 ## Run it
 
-### In a terminal, without a MAX token
+### In a terminal, locally
 
 The dialog does not know what MAX is, so the whole conversation runs locally. This is
 the fastest way to iterate on wording and filters.
 
 ```bash
 python3 data/generate_fixtures.py   # once, if data/kazan_events.json is missing
-python3 backend/console.py
+PROCULTURE_API_KEY='' DB_PATH=data/console-local.db python3 backend/console.py
 ```
 
 ### As a real MAX bot (long polling, no public HTTPS needed)
 
 ```bash
-cp .env.example .env    # put MAX_BOT_TOKEN in it
-python3 --env-file=.env backend/runner.py
+cp .env.example .env    # only if .env does not exist; fill private settings
+python3 backend/runner.py
 ```
 
-### As a service (webhook, for deployment)
+### As a service (local UI/API)
 
 ```bash
 docker compose up --build
 ```
 
-Then `http://localhost:8000/health`, with the webhook at `POST /webhook` and the
+This starts UI/API, not polling; it does not register a webhook. The reminder
+worker requires the separate `live` profile. Then `http://localhost:8000/health`,
+with the webhook at `POST /webhook` and the
 generated OpenAPI document at `/openapi.json`.
 
 The same image serves the React budget planner at `http://localhost:8000/app/` and
 `GET /api/planner/meta`, `POST /api/planner/plans`. These endpoints are stateless:
-they do not load or modify bot profiles. No token is required for a local synthetic
-demo. See [frontend setup and limits](../frontend/README.md).
+they do not load or modify bot profiles. The synthetic demo runs locally. See [frontend setup and limits](../frontend/README.md).
 
-### When a key arrives
+### Connection checks
 
-Both keys are wired: drop the value into `.env` and nothing else changes.
+Private settings are read from `.env` automatically. Run the MAX commands below
+only for your own instance or an agreed handover; the team's bot already runs.
+Do not run another polling process or use polling and webhook simultaneously.
 
 ```bash
-# MAX bot token — resolves the four unverified behaviours in one pass
-python3 backend/check_token.py
+# MAX connection checks
 python3 backend/probe_max.py --wait 30
 python3 backend/probe_max.py --chat <id>    # sending, keyboards, proactive
 python3 backend/runner.py                   # the bot is live in MAX
@@ -55,7 +57,7 @@ python3 backend/probe_catalog.py --save                # real numbers + a saved 
 ```
 
 `probe_catalog.py` answers the four questions the ranking design is blocked on, and
-prints the real funnel numbers that replace the synthetic ones on the evidence slide.
+prints the real catalogue funnel numbers.
 
 ### Tests
 
@@ -90,7 +92,6 @@ python3 -m pytest backend/app/tests -q
 | `app/main.py` | FastAPI: `/health`, `/webhook` |
 | `console.py` | run the dialog in a terminal |
 | `runner.py` | run the bot against MAX by long polling |
-| `check_token.py` | is the MAX token valid? (`GET /me`) |
 | `probe_max.py` | resolve the four unverified MAX behaviours, including proactive sends |
 | `probe_catalog.py` | pull the real feed, answer the open data questions, print the real funnel |
 | `eval_ranking.py` | does the ranking beat chronological order? measures it |
@@ -98,7 +99,7 @@ python3 -m pytest backend/app/tests -q
 Three deliberate boundaries:
 
 1. **The dialog does not know about MAX.** Three transports drive the same logic, and
-   we could iterate on the conversation before having a token.
+   we could iterate on the conversation before connecting it to MAX.
 2. **Nothing above `catalog.py` knows where events come from.** The fixture was
    generated in the real API's schema precisely so this swap is free.
 3. **Card limits live only in `config.py`.** They can change. Keep a source and review
@@ -110,9 +111,6 @@ Three deliberate boundaries:
 - **A dense user embedding.** `taste_weights` is already a sparse one. A learned
   dense vector needs the interaction log to fill up first — see
   [../docs/design/database.md](../docs/design/database.md).
-- **Scheduled reminders.** The balance command is a reply to a user, not a background
-  scheduler. Opt-in, cancellation, delivery deduplication and retry remain to build.
-- **The mini app.** Scope is still open — see the open items in the root README.
 - **Any ML at runtime.** By design: see
   [../docs/compliance-check.md](../docs/compliance-check.md). Labelling and embedding
   run offline and ship as data, which keeps the Docker build under the 5-minute cap
@@ -124,11 +122,10 @@ Three deliberate boundaries:
   `example.invalid`. See [../data/README.md](../data/README.md).
 - **The balance is user-reported.** There is no public API for the Pushkin Card
   balance, so we ask and label it as their number, not a verified one.
-- **The MAX keyboard payload shape is unverified.** It is written from the docs but
-  has not been tested against a live token. It is isolated in `max_client.py` for
-  that reason.
-- **Docker image and tests checked in this branch** — the image builds and all 79
-  tests pass on container Python 3.12. Live MAX mobile/web validation is still pending.
+- **Final MAX validation is pending.** The team checked polling and the basic
+  dialog on 26 September; the current version still needs mobile/web verification.
+- **Tests checked on 28 September 2026** — all 168 pass locally. These tests do not
+  verify real MAX delivery or availability.
 - **No location question yet**, so the distance filter is inactive in the default
   flow. `UserProfile.home` and the filter both work; the dialog just does not ask.
 
@@ -149,15 +146,19 @@ SQLite persists profiles and sessions when a Store is supplied by console/runner
 versions updated that column on every message; historical timestamps from those
 versions must not be used as evidence of a fresh balance confirmation.
 
+Scheduled reminders are implemented with opt-in, cancellation, delivery tracking
+and retry in `app/reminders.py` and `app/reminder_worker.py`. They require a separate
+worker; polling does not start it. Real MAX delivery still needs verification.
+
 For a clean local environment:
 
 ```bash
 python3 -m venv .venv
 .venv/bin/python -m pip install -r backend/requirements.txt
 .venv/bin/python -m pytest backend/app/tests -q
-.venv/bin/python backend/console.py
+PROCULTURE_API_KEY='' DB_PATH=data/console-local.db .venv/bin/python backend/console.py
 ```
 
-The polling runner reads environment variables, not `.env` automatically. With Python
-3.12+ use `.venv/bin/python --env-file=.env backend/runner.py`. Docker Compose reads
-its configured env file itself.
+`app/config.py` automatically reads the local `.env`; existing environment variables
+take precedence. Run `.venv/bin/python backend/runner.py` only for your own instance
+or an agreed handover. Docker Compose reads its configured env file itself.
